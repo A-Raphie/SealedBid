@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFhevm } from "@fhevm-sdk";
 import confetti from "canvas-confetti";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { useAuctionFactory } from "~~/hooks/sealedbid/useAuctionFactory";
 import { useSealedBidAuction } from "~~/hooks/sealedbid/useSealedBidAuction";
 import { type AuctionMetadata, CATEGORY_DEFAULTS, buildItemURI, parseItemURI } from "~~/lib/auction-metadata";
@@ -78,7 +78,14 @@ function playWinSound() {
 
 export const SealedBidApp = () => {
   const { chain, address: accountAddress } = useAccount();
+  const { switchChain } = useSwitchChain();
   const chainId = chain?.id;
+
+  useEffect(() => {
+    if (accountAddress && chainId && chainId !== 11155111) {
+      switchChain?.({ chainId: 11155111 });
+    }
+  }, [accountAddress, chainId, switchChain]);
   const provider = useMemo(() => (typeof window !== "undefined" ? (window as any).ethereum : undefined), []);
   const initialMockChains = { 31337: "http://localhost:8545" };
 
