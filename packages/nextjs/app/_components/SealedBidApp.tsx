@@ -606,55 +606,6 @@ function AuctionCardMyBid({
   );
 }
 
-function AuctionCardCompact({
-  info,
-  now,
-  onClick,
-  hasUserBid,
-}: {
-  info: AuctionInfo & { addr: string; idx: number; meta: AuctionMetadata | null };
-  now: number;
-  onClick: () => void;
-  hasUserBid?: boolean;
-}) {
-  const timeLeft = info.deadline === 0 ? -1 : Math.max(0, info.deadline - now);
-  const catDefault = CATEGORY_DEFAULTS[info.category] ?? CATEGORY_DEFAULTS[0];
-  const image = info.meta?.image ?? catDefault.image;
-
-  return (
-    <div
-      onClick={onClick}
-      className="min-w-[180px] sm:min-w-[200px] max-w-[200px] bg-[#1a1f3a] rounded-xl overflow-hidden cursor-pointer hover:ring-1 hover:ring-white/10 transition-all"
-    >
-      <div className="aspect-square relative overflow-hidden">
-        <img src={image} alt="" className="w-full h-full object-cover" loading="lazy" />
-        {hasUserBid && (
-          <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[9px] font-semibold bg-[#FFD208]/20 text-[#FFD208]">
-            Your Bid
-          </span>
-        )}
-      </div>
-      <div className="p-3.5">
-        <h4 className="text-sm font-medium text-white truncate">{info.itemTitle}</h4>
-        <div className="flex items-center justify-between mt-1.5">
-          <span className="text-xs text-gray-400">
-            {info.bidderCount} bid{info.bidderCount !== 1 ? "s" : ""}
-          </span>
-          {timeLeft === -1 ? (
-            <span className="text-[11px] text-amber-400">Waiting</span>
-          ) : (
-            <span
-              className={`text-[11px] font-mono ${timeLeft === 0 ? "text-gray-600" : timeLeft < 600 ? "text-amber-400" : "text-gray-500"}`}
-            >
-              {formatCountdown(timeLeft)}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AuctionCard({
   info,
   now,
