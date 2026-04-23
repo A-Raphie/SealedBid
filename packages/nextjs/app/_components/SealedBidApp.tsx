@@ -91,7 +91,15 @@ export const SealedBidApp = () => {
   const [catFilter, setCatFilter] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [auctionDetails, setAuctionDetails] = useState<Record<string, AuctionInfo>>({});
-  const [userBids, setUserBids] = useState<Set<string>>(new Set());
+  const [userBids, setUserBids] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const stored = localStorage.getItem("sealedbid_userbids");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
@@ -239,10 +247,8 @@ export const SealedBidApp = () => {
 
   const myBidAuctions = useMemo(() => {
     if (!accountAddress) return [];
-    return auctionsList.filter(a =>
-      auctionDetails[a.addr]?.bidders?.some((b: string) => b.toLowerCase() === accountAddress.toLowerCase()),
-    );
-  }, [auctionsList, auctionDetails, accountAddress]);
+    return auctionsList.filter(a => userBids.has(a.addr));
+  }, [auctionsList, userBids, accountAddress]);
 
   const sortedMyBids = useMemo(() => {
     const sorted = [...myBidAuctions];
@@ -293,7 +299,13 @@ export const SealedBidApp = () => {
         now={now}
         meta={detailMeta}
         fheReady={fheReady}
-        onBidPlaced={(addr: string) => setUserBids(prev => new Set(prev).add(addr))}
+        onBidPlaced={(addr: string) => {
+          setUserBids(prev => {
+            const next = new Set(prev).add(addr);
+            try { localStorage.setItem("sealedbid_userbids", JSON.stringify([...next])); } catch {}
+            return next;
+          });
+        }}
         onToast={setToast}
       />
     );
