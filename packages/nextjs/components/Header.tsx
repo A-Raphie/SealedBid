@@ -1,21 +1,15 @@
 "use client";
 
-import React, { useRef } from "react";
+import React from "react";
 import { RainbowKitCustomConnectButton } from "~~/components/helper";
-import { useOutsideClick } from "~~/hooks/helper";
 
-/**
- * Site header
- */
 export const Header = () => {
-  const burgerMenuRef = useRef<HTMLDetailsElement>(null);
-  useOutsideClick(burgerMenuRef, () => {
-    burgerMenuRef?.current?.removeAttribute("open");
-  });
-
   return (
-    <div className="sticky lg:static top-0 navbar min-h-0 shrink-0 justify-between z-20 px-0 sm:px-2">
-      <div className="navbar-end grow mr-4">
+    <div className="sticky top-0 z-30 bg-[#0d1129] border-b border-white/[0.06]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between py-2.5">
+        <span className="text-lg font-semibold text-white tracking-tight">
+          Sealed<span className="text-[#FFD208]">Bid</span>
+        </span>
         <RainbowKitCustomConnectButton />
       </div>
     </div>

@@ -1,190 +1,265 @@
-# FHEVM React Template
+# SealedBid — Confidential Sealed-Bid Auctions on fhEVM
 
-A minimal React frontend template for building FHEVM-enabled decentralized applications (dApps). This template provides a simple development interface for interacting with FHEVM smart contracts, specifically the `FHECounter.sol` contract.
+A decentralized sealed-bid auction platform where bids are **encrypted using Fully Homomorphic Encryption (FHE)**. Nobody — not even the contract creator — can see individual bids. The winner is determined through **homomorphic comparison** on encrypted data, and only the winning bid is ever decrypted.
 
-## 🚀 What is FHEVM?
+Built for the [Zama Developer Program](https://www.zama.ai/) Builder Track.
 
-FHEVM (Fully Homomorphic Encryption Virtual Machine) enables computation on encrypted data directly on Ethereum. This template demonstrates how to build dApps that can perform computations while keeping data private.
+## Demo
 
-## ✨ Features
+[3-min video demo](#) *(coming soon)*
 
-- **🔐 FHEVM Integration**: Built-in support for fully homomorphic encryption
-- **⚛️ React + Next.js**: Modern, performant frontend framework
-- **🎨 Tailwind CSS**: Utility-first styling for rapid UI development
-- **🔗 RainbowKit**: Seamless wallet connection and management
-- **🌐 Multi-Network Support**: Works on both Sepolia testnet and local Hardhat node
-- **📦 Monorepo Structure**: Organized packages for SDK, contracts, and frontend
+## How It Works
 
-## 🧰 Scripts overview
+Traditional on-chain auctions are transparent — anyone can see all bids, enabling sniping and collusion. SealedBid uses Zama's fhEVM to keep bids private:
 
-| Script                   | What it does                                                   |
-| ------------------------ | -------------------------------------------------------------- |
-| `pnpm dev`              | Starts the frontend dev server for the React template.        |
-| `pnpm test`             | Runs the frontend tests in watch mode.                        |
-| `pnpm lint`             | Lints the project using the configured ESLint rules.          |
-| `pnpm build`            | Builds the production bundle for deployment.                  |
-| `pnpm preview`          | Serves the built app locally to verify the production build.  |
+```
+1. User enters bid → encrypted client-side via fhevm SDK
+2. Encrypted bid (euint64) submitted on-chain — nobody can read it
+3. First bid starts a countdown timer (default: 10 seconds)
+4. Timer expires → agentic wallet calls endAuction() (FHE tournament runs on-chain)
+5. Server-side FHE decrypt reveals only the winner + winning bid
+6. All other bids stay private forever
+```
 
-## 📋 Prerequinextjss
+### FHE Tournament
 
-Before you begin, ensure you have:
+The `SealedBidAuction` contract uses `FHE.gt()` (greater-than) and `FHE.select()` to find the highest bid **without decrypting any individual bid**:
 
-- **Node.js** (v18 or higher)
-- **pnpm** package manager
-- **MetaMask** browser extension
-- **Git** for cloning the repository
+```solidity
+for (uint256 i = 1; i < bidders.length; i++) {
+    euint64 challenger = encryptedBids[bidders[i]];
+    ebool isGreater = FHE.gt(challenger, currentMax);
+    currentMax = FHE.select(isGreater, challenger, currentMax);
+    currentWinnerIdx = FHE.select(isGreater, idxEnc, currentWinnerIdx);
+}
+```
 
-## 🛠️ Quick Start
+## Why FHE?
 
-### 1. Clone and Setup
+| Problem | Solution |
+|---------|----------|
+| On-chain bids are public → bid sniping | Bids encrypted client-side, stored as `euint64` |
+| Auctioneers can peek at bids | Even the contract creator cannot decrypt individual bids |
+| Trusted third party needed for sealed bids | FHE tournament computes winner on encrypted data — no trust required |
+| Collusion between bidders | Impossible — bid values never visible until reveal |
+
+**Real-world use cases:** procurement (government contracts), NFT art sales, real estate bidding, freelance job auctions, commodity trading.
+
+## Features
+
+- **Encrypted bids** via fhEVM — fully private until reveal
+- **FHE tournament** determines winner without decrypting bids
+- **Agentic wallet** — server-side auto-decrypt and settle, users never sign compute transactions
+- **Timer-on-first-bid** — countdown starts when first bid is placed, not at creation
+- **5 categories** — NFT Art, Procurement, Real Estate, Freelance, Commodity
+- **Image upload** via imgbb CDN with client-side compression
+- **Create Auction modal** — duration picker with seconds/minutes/hours/days
+- **Cancel Auction** — creators can cancel before any bids
+- **"My Bids" tab** — paginated view of auctions you've bid on
+- **Viewer-specific UX** — winner (green + confetti), loser (red), non-bidder (neutral)
+- **Auto-replenishing** — maintains 8 active auctions from 12 templates
+- **RPC fallback** — Infura → Alchemy → PublicNode → 1RPC → rpc.sepolia.org → DRPC
+- **Real-time countdown** timers with seconds
+- **OpenSea-inspired** dark UI with Zama theme (navy + gold)
+- **Mobile-responsive** layout
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| FHE | [Zama fhEVM](https://docs.zama.ai/fhevm) — Fully Homomorphic Encryption on EVM |
+| Smart Contracts | Solidity 0.8.27 — SealedBidAuction + AuctionFactory |
+| Frontend | Next.js 15, React 19, TypeScript |
+| Wallet | wagmi v2, RainbowKit, MetaMask |
+| Encryption SDK | fhevm SDK (`packages/fhevm-sdk`) |
+| Contract Reads | ethers.js v6 (JsonRpcProvider) |
+| Styling | Tailwind CSS 4, custom Zama theme |
+| Network | Sepolia testnet |
+
+## Smart Contracts
+
+### AuctionFactory (`0xf6aACE498919826cFDbC8C3C125D6FCE161Ce39f` on Sepolia)
+
+Creates and tracks all auction instances.
+
+```solidity
+function createAuction(string itemURI, string title, string description,
+                       address paymentToken, uint256 durationSeconds,
+                       uint8 category, address nftContract, uint256 nftTokenId)
+    external returns (address);
+function getAllAuctions() external view returns (address[]);
+function getAuctionInfo(address auction) external view returns (AuctionInfo);
+function getAuctionCount() external view returns (uint256);
+```
+
+### SealedBidAuction
+
+Core auction contract with FHE bid storage and tournament.
+
+```solidity
+function placeBid(externalEuint64 inputBid, bytes calldata inputProof) external onlyActive;
+function endAuction() external;                      // Runs FHE tournament, allows all bidders to decrypt
+function settleAuction(address winner, uint64 winningBid) external onlyCreator;
+function cancelAuction() external onlyCreator;       // Cancel before any bids
+function winningBid() external view returns (uint64); // Post-settle winner amount
+```
+
+**Auction lifecycle:** Active (status 0) → Ended (status 1, FHE computed) → Settled (status 2)
+
+## Architecture
+
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│   Browser   │     │  Next.js API │     │  Sepolia (fhEVM) │
+│             │     │              │     │                  │
+│  fhevm SDK  │────▶│              │     │  AuctionFactory  │
+│  encrypt    │     │              │     │       │          │
+│  bid        │     │              │     │  SealedBidAuction│
+│             │     │              │     │   (euint64 bids) │
+│  wagmi      │────▶│              │────▶│  placeBid()      │
+│  writeContract    │              │     │  endAuction()    │
+│             │     │  Agentic     │     │  settleAuction() │
+│             │     │  Wallet      │────▶│                  │
+│             │     │  (HDNode)    │     │  FHE.gt()        │
+│             │     │              │     │  FHE.select()    │
+│  polls      │◀────│  decrypt     │◀────│  FHE.allow()     │
+│  results    │     │  + settle    │     │                  │
+└─────────────┘     └──────────────┘     └──────────────────┘
+```
+
+**Key design decisions:**
+
+- **Agentic wallet pattern** — A server-side HDNodeWallet (derived from a mnemonic) handles `endAuction()` and `settleAuction()` automatically. Users only sign their encrypted bid — the rest is trustless and automatic.
+- **Timer-on-first-bid** — The countdown starts at 0 and is set when the first bid is placed. This eliminates the need for constant auction restarts and extends deployer wallet longevity from ~23 hours to ~91 days.
+- **`FHE.allow()` for all bidders** — `endAuction()` grants decryption access to every bidder, enabling server-side winner reveal without per-user signatures.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js v18+
+- pnpm
+- MetaMask with Sepolia ETH
+
+### Installation
 
 ```bash
-# Clone the repository
 git clone <repository-url>
-cd fhevm-react-template
-
-# Initialize submodules (includes fhevm-hardhat-template)
-git submodule update --init --recursive
-
-# Install dependencies
+cd SealedBid
 pnpm install
 ```
 
-### 2. Environment Configuration
+### Configuration
 
-Set up your Hardhat environment variables by following the [FHEVM documentation](https://docs.zama.ai/protocol/solidity-guides/getting-started/setup#set-up-the-hardhat-configuration-variables-optional):
+Create `packages/nextjs/.env.local`:
 
-- `MNEMONIC`: Your wallet mnemonic phrase
-- `INFURA_API_KEY`: Your Infura API key for Sepolia
+```env
+NEXT_PUBLIC_FACTORY_ADDRESS=0xf6aACE498919826cFDbC8C3C125D6FCE161Ce39f
+DEPLOYER_MNEMONIC=your twelve word mnemonic phrase here
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_key
+NEXT_PUBLIC_IMGBB_KEY=your_imgbb_key
+```
 
-### 3. Start Development Environment
-
-**Option A: Local Development (Recommended for testing)**
+### Run Locally
 
 ```bash
-# Terminal 1: Start local Hardhat node
-pnpm chain
-# RPC URL: http://127.0.0.1:8545 | Chain ID: 31337
-
-# Terminal 2: Deploy contracts to localhost
-pnpm deploy:localhost
-
-# Terminal 3: Start the frontend
-pnpm start
+cd packages/nextjs
+pnpm dev
 ```
 
-**Option B: Sepolia Testnet**
+Open [http://localhost:3000](http://localhost:3000).
+
+### Seed Auctions
 
 ```bash
-# Deploy to Sepolia testnet
-pnpm deploy:sepolia
-
-# Start the frontend
-pnpm start
+curl http://localhost:3000/api/seed
 ```
 
-### 4. Connect MetaMask
+Creates 8 sample auctions with 10-second durations from pre-built templates.
 
-1. Open [http://localhost:3000](http://localhost:3000) in your browser
-2. Click "Connect Wallet" and select MetaMask
-3. If using localhost, add the Hardhat network to MetaMask:
-   - **Network Name**: Hardhat Local
-   - **RPC URL**: `http://127.0.0.1:8545`
-   - **Chain ID**: `31337`
-   - **Currency Symbol**: `ETH`
+### Deploy Contracts (Sepolia)
 
-### ⚠️ Common pitfalls
+```bash
+cd packages/hardhat
+npx hardhat deploy --network sepolia
+```
 
-- If contracts are not found, make sure submodules are initialized with  
-  `git submodule update --init --recursive` and that you have run `pnpm install`.
-- If the frontend shows network or RPC errors, double-check that `MNEMONIC`
-  and `INFURA_API_KEY` are correctly set in your Hardhat environment.
-- If the app builds but cannot read contract state, verify that
-  `NEXT_PUBLIC_ALCHEMY_API_KEY` and `packages/nextjs/contracts/deployedContracts.ts`
-  point to the right network and deployed addresses.
+### Run Tests
 
-### ⚠️ Sepolia Production note
+```bash
+cd packages/hardhat
+npx hardhat test
+```
 
-- In production, `NEXT_PUBLIC_ALCHEMY_API_KEY` must be set (see `packages/nextjs/scaffold.config.ts`). The app throws if missing.
-- Ensure `packages/nextjs/contracts/deployedContracts.ts` points to your live contract addresses.
-- Optional: set `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` for better WalletConnect reliability.
-- Optional: add per-chain RPCs via `rpcOverrides` in `packages/nextjs/scaffold.config.ts`.
+19 tests covering bid placement, FHE tournament, auction lifecycle, cancel, and edge cases.
 
-## 🔧 Troubleshooting
-
-### Common MetaMask + Hardhat Issues
-
-When developing with MetaMask and Hardhat, you may encounter these common issues:
-
-#### ❌ Nonce Mismatch Error
-
-**Problem**: MetaMask tracks transaction nonces, but when you restart Hardhat, the node resets while MetaMask doesn't update its tracking.
-
-**Solution**:
-1. Open MetaMask extension
-2. Select the Hardhat network
-3. Go to **Settings** → **Advanced**
-4. Click **"Clear Activity Tab"** (red button)
-5. This resets MetaMask's nonce tracking
-
-#### ❌ Cached View Function Results
-
-**Problem**: MetaMask caches smart contract view function results. After restarting Hardhat, you may see outdated data.
-
-**Solution**:
-1. **Restart your entire browser** (not just refresh the page)
-2. MetaMask's cache is stored in extension memory and requires a full browser restart to clear
-
-> 💡 **Pro Tip**: Always restart your browser after restarting Hardhat to avoid cache issues.
-
-For more details, see the [MetaMask development guide](https://docs.metamask.io/wallet/how-to/run-devnet/).
-
-## 📁 Project Structure
-
-This template uses a monorepo structure with three main packages:
+## Project Structure
 
 ```
-fhevm-react-template/
+SealedBid/
 ├── packages/
-│   ├── fhevm-hardhat-template/    # Smart contracts & deployment
-│   ├── fhevm-sdk/                 # FHEVM SDK package
-│   └── nextjs/                      # React frontend application
-└── scripts/                       # Build and deployment scripts
+│   ├── hardhat/
+│   │   ├── contracts/
+│   │   │   ├── SealedBidAuction.sol          # FHE auction contract
+│   │   │   └── AuctionFactory.sol            # Factory pattern
+│   │   ├── test/SealedBidAuction.ts          # 19 tests
+│   │   ├── deploy/deploy.ts                  # Hardhat deploy script
+│   │   └── scripts/seed-auctions.ts          # Standalone seeder
+│   ├── fhevm-sdk/                            # Custom FHE SDK wrapper
+│   │   └── src/
+│   │       ├── react/
+│   │       │   ├── useFhevm.tsx              # FHE instance management
+│   │       │   ├── useFHEEncryption.ts       # Encryption hook
+│   │       │   └── useFHEDecrypt.ts          # Decryption hook
+│   │       └── internal/
+│   │           ├── fhevm.ts                  # Instance creation
+│   │           └── RelayerSDKLoader.ts       # Relayer SDK loader
+│   └── nextjs/
+│       ├── app/
+│       │   ├── _components/SealedBidApp.tsx  # Main UI (cards, detail, modals)
+│       │   ├── error.tsx                     # Error boundary
+│       │   └── api/
+│       │       ├── seed/route.ts             # Initial auction seeding
+│       │       ├── auto-finalize/route.ts    # End + settle + replenish
+│       │       └── trigger-settle/route.ts   # Single-auction settle
+│       ├── hooks/sealedbid/
+│       │   ├── useSealedBidAuction.ts        # Auction reads/writes/FHE
+│       │   └── useAuctionFactory.ts          # Factory interactions
+│       ├── lib/
+│       │   ├── rpc-config.ts                 # RPC URLs, provider singletons
+│       │   ├── decrypt-and-settle.ts         # FHE decrypt + settle logic
+│       │   ├── settle-cache.ts               # In-memory settle state
+│       │   ├── auction-templates.ts          # 12 templates, TARGET_ACTIVE=8
+│       │   └── auction-metadata.ts           # Types, parseItemURI, buildItemURI
+│       ├── contracts/                        # ABIs + deployed addresses
+│       └── styles/globals.css                # Zama theme + animations
 ```
 
-### Key Components
+## Auto-Replenish System
 
-#### 🔗 FHEVM Integration (`packages/nextjs/hooks/fhecounter-example/`)
-- **`useFHECounterWagmi.tsx`**: Example hook demonstrating FHEVM contract interaction
-- Essential hooks for FHEVM-enabled smart contract communication
-- Easily copyable to any FHEVM + React project
+The app maintains **8 active auctions** at all times:
 
-#### 🎣 Wallet Management (`packages/nextjs/hooks/helper/`)
-- MetaMask wallet provider hooks
-- Compatible with EIP-6963 standard
-- Easily adaptable for other wallet providers
+- **`/api/seed`** — Creates 8 auctions with 10-second durations when none exist.
+- **`/api/auto-finalize`** — Ends expired auctions with bids, decrypts + settles via agentic wallet, replenishes up to 8. Runs every 45 seconds.
+- **`/api/trigger-settle`** — Non-blocking single-auction settle endpoint. Called when user clicks "Check Winner".
 
-#### 🔧 Flexibility
-- Replace `ethers.js` with `Wagmi` or other React-friendly libraries
-- Modular architecture for easy customization
-- Support for multiple wallet providers
+All server-side operations use an **agentic wallet** (HDNodeWallet from mnemonic) — no user signatures required for `endAuction()` or `settleAuction()`.
 
-## 📚 Additional Resources
+## Key Learnings
 
-### Official Documentation
-- [FHEVM Documentation](https://docs.zama.ai/protocol/solidity-guides/) - Complete FHEVM guide
-- [FHEVM Hardhat Guide](https://docs.zama.ai/protocol/solidity-guides/development-guide/hardhat) - Hardhat integration
-- [Relayer SDK Documentation](https://docs.zama.ai/protocol/relayer-sdk-guides/) - SDK reference
-- [Environment Setup](https://docs.zama.ai/protocol/solidity-guides/getting-started/setup#set-up-the-hardhat-configuration-variables-optional) - MNEMONIC & API keys
+- **`FallbackProvider` doesn't work in browsers** — Different RPCs report different chain IDs, causing `NETWORK_ERROR`. Use `JsonRpcProvider` with manual fallback logic instead.
+- **wagmi v2's `isConnected` is unreliable** — Can be `false` while `address` is populated during reconnection. Check `!!address` instead.
+- **1rpc.io doesn't work for FHE SDK** — The `network` parameter in `createInstance()` requires Infura or Alchemy; 1rpc.io causes a hang.
+- **FHE decrypt takes ~50-60 seconds** — Zama's server-side homomorphic decryption is not instant. Show a countdown to users.
+- **Timer-on-first-bid saves gas** — Instead of restarting auctions every 10 seconds, the timer starts at 0 and is set on first bid. 2 ETH lasts ~91 days instead of ~23 hours.
+- **Base64 on-chain is prohibitively expensive** — A 200KB base64 string costs ~3.2M gas. Use external image hosting (imgbb CDN).
+- **`ethers` signer doesn't work in browser wallets** — Use wagmi's `writeContractAsync` for writes, ethers `JsonRpcProvider` for reads only.
+- **`Promise.all` fails on FHE contracts** — Some view functions revert on certain auction states. Use `Promise.allSettled()` for batch reads.
 
-### Development Tools
-- [MetaMask + Hardhat Setup](https://docs.metamask.io/wallet/how-to/run-devnet/) - Local development
-- [React Documentation](https://reactjs.org/) - React framework guide
-
-### Community & Support
-- [FHEVM Discord](https://discord.com/invite/zama) - Community support
-- [GitHub Issues](https://github.com/zama-ai/fhevm-react-template/issues) - Bug reports & feature requests
-
-## 📄 License
+## License
 
 This project is licensed under the **BSD-3-Clause-Clear License**. See the [LICENSE](LICENSE) file for details.
+
+---
+
+Built by [Raphie](https://x.com/A_raphie) for the Zama Developer Program.

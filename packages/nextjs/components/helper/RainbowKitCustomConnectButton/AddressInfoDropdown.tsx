@@ -5,6 +5,7 @@ import { useDisconnect } from "wagmi";
 import { ArrowLeftIcon } from "@heroicons/react/20/solid";
 import { ArrowsRightLeftIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { BlockieAvatar } from "~~/components/helper";
+import { Balance } from "~~/components/helper";
 import { useOutsideClick } from "~~/hooks/helper";
 import { getTargetNetworks } from "~~/utils/helper";
 
@@ -15,9 +16,10 @@ type AddressInfoDropdownProps = {
   displayName: string;
   ensAvatar?: string;
   blockExplorerAddressLink?: string;
+  chain?: { name?: string };
 };
 
-export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: AddressInfoDropdownProps) => {
+export const AddressInfoDropdown = ({ address, ensAvatar, displayName, chain }: AddressInfoDropdownProps) => {
   const { disconnect } = useDisconnect();
   const checkSumAddress = getAddress(address);
 
@@ -41,6 +43,12 @@ export const AddressInfoDropdown = ({ address, ensAvatar, displayName }: Address
         </summary>
         <ul className="dropdown-content menu z-2 p-2 mt-2 shadow-center shadow-accent bg-base-200 rounded-box gap-1">
           <NetworkOptions hidden={!selectingNetwork} />
+          <li className={selectingNetwork ? "hidden" : ""}>
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-transparent">
+              <span className="text-xs text-gray-400">{chain?.name}</span>
+              <Balance address={checkSumAddress} className="min-h-0 h-auto text-xs text-gray-300" />
+            </div>
+          </li>
           {allowedNetworks.length > 1 ? (
             <li className={selectingNetwork ? "hidden" : ""}>
               <button

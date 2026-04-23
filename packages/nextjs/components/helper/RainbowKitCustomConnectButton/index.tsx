@@ -1,7 +1,6 @@
 "use client";
 
 // @refresh reset
-import { Balance } from "../Balance";
 import { AddressInfoDropdown } from "./AddressInfoDropdown";
 import { WrongNetworkDropdown } from "./WrongNetworkDropdown";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -28,8 +27,13 @@ export const RainbowKitCustomConnectButton = () => {
             {(() => {
               if (!connected) {
                 return (
-                  <button className="btn btn-md rounded-none bg-[#FFD208] text-gray-900 cursor-pointer border-none" onClick={openConnectModal} type="button">
-                    Connect Wallet
+                  <button
+                    className="btn btn-sm sm:btn-md rounded-xl bg-[#FFD208] text-[#0a0e27] cursor-pointer border-none font-bold text-xs sm:text-sm px-3 sm:px-4"
+                    onClick={openConnectModal}
+                    type="button"
+                  >
+                    <span className="hidden sm:inline">Connect Wallet</span>
+                    <span className="sm:hidden">Connect</span>
                   </button>
                 );
               }
@@ -40,15 +44,12 @@ export const RainbowKitCustomConnectButton = () => {
 
               return (
                 <>
-                  <div className="flex flex-col items-center mr-1 text-gray-900">
-                    <Balance address={account.address as Address} className="min-h-0 h-auto" />
-                    <span className="text-xs text-gray-900">{chain.name}</span>
-                  </div>
                   <AddressInfoDropdown
                     address={account.address as Address}
                     displayName={account.displayName}
                     ensAvatar={account.ensAvatar}
                     blockExplorerAddressLink={blockExplorerAddressLink}
+                    chain={chain}
                   />
                 </>
               );

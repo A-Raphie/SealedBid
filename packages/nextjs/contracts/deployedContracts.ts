@@ -6,29 +6,82 @@ import { GenericContractsDeclaration } from "~~/utils/helper/contract";
 
 const deployedContracts = {
   31337: {
-    FHECounter: {
-      address: "0xc1b7223f08F52fbfA263c27674AE577911c3b20e",
+    AuctionFactory: {
+      address: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
       abi: [
-        {
-          inputs: [
-            {
-              internalType: "bytes32",
-              name: "handle",
-              type: "bytes32",
-            },
-            {
-              internalType: "address",
-              name: "sender",
-              type: "address",
-            },
-          ],
-          name: "SenderNotAllowedToUseHandle",
-          type: "error",
-        },
         {
           inputs: [],
           name: "ZamaProtocolUnsupported",
           type: "error",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "auctionAddress",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "creator",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint8",
+              name: "category",
+              type: "uint8",
+            },
+            {
+              indexed: false,
+              internalType: "string",
+              name: "itemTitle",
+              type: "string",
+            },
+          ],
+          name: "AuctionCreated",
+          type: "event",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          name: "allAuctions",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          name: "auctionCreators",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
         },
         {
           inputs: [],
@@ -46,29 +99,78 @@ const deployedContracts = {
         {
           inputs: [
             {
-              internalType: "externalEuint32",
-              name: "inputEuint32",
-              type: "bytes32",
+              internalType: "string",
+              name: "_itemURI",
+              type: "string",
             },
             {
-              internalType: "bytes",
-              name: "inputProof",
-              type: "bytes",
+              internalType: "string",
+              name: "_itemTitle",
+              type: "string",
+            },
+            {
+              internalType: "string",
+              name: "_itemDescription",
+              type: "string",
+            },
+            {
+              internalType: "address",
+              name: "_paymentToken",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "_durationSeconds",
+              type: "uint256",
+            },
+            {
+              internalType: "uint8",
+              name: "_category",
+              type: "uint8",
+            },
+            {
+              internalType: "address",
+              name: "_nftContract",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "_nftTokenId",
+              type: "uint256",
             },
           ],
-          name: "decrement",
-          outputs: [],
+          name: "createAuction",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
           stateMutability: "nonpayable",
           type: "function",
         },
         {
           inputs: [],
-          name: "getCount",
+          name: "getAllAuctions",
           outputs: [
             {
-              internalType: "euint32",
+              internalType: "address[]",
               name: "",
-              type: "bytes32",
+              type: "address[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getAuctionCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
             },
           ],
           stateMutability: "view",
@@ -77,19 +179,81 @@ const deployedContracts = {
         {
           inputs: [
             {
-              internalType: "externalEuint32",
-              name: "inputEuint32",
-              type: "bytes32",
-            },
-            {
-              internalType: "bytes",
-              name: "inputProof",
-              type: "bytes",
+              internalType: "address",
+              name: "_auction",
+              type: "address",
             },
           ],
-          name: "increment",
-          outputs: [],
-          stateMutability: "nonpayable",
+          name: "getAuctionInfo",
+          outputs: [
+            {
+              components: [
+                {
+                  internalType: "address",
+                  name: "auctionAddress",
+                  type: "address",
+                },
+                {
+                  internalType: "address",
+                  name: "creator",
+                  type: "address",
+                },
+                {
+                  internalType: "string",
+                  name: "itemTitle",
+                  type: "string",
+                },
+                {
+                  internalType: "uint8",
+                  name: "category",
+                  type: "uint8",
+                },
+                {
+                  internalType: "uint256",
+                  name: "deadline",
+                  type: "uint256",
+                },
+                {
+                  internalType: "uint8",
+                  name: "status",
+                  type: "uint8",
+                },
+                {
+                  internalType: "uint256",
+                  name: "bidderCount",
+                  type: "uint256",
+                },
+              ],
+              internalType: "struct AuctionFactory.AuctionInfo",
+              name: "",
+              type: "tuple",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "offset",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "limit",
+              type: "uint256",
+            },
+          ],
+          name: "getAuctionsPaginated",
+          outputs: [
+            {
+              internalType: "address[]",
+              name: "",
+              type: "address[]",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
       ],
@@ -98,29 +262,82 @@ const deployedContracts = {
     },
   },
   11155111: {
-    FHECounter: {
-      address: "0xA38F944BAb27103c262631872e2cEae3236B1d3b",
+    AuctionFactory: {
+      address: "0xf6aACE498919826cFDbC8C3C125D6FCE161Ce39f",
       abi: [
-        {
-          inputs: [
-            {
-              internalType: "bytes32",
-              name: "handle",
-              type: "bytes32",
-            },
-            {
-              internalType: "address",
-              name: "sender",
-              type: "address",
-            },
-          ],
-          name: "SenderNotAllowedToUseHandle",
-          type: "error",
-        },
         {
           inputs: [],
           name: "ZamaProtocolUnsupported",
           type: "error",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "auctionAddress",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "creator",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint8",
+              name: "category",
+              type: "uint8",
+            },
+            {
+              indexed: false,
+              internalType: "string",
+              name: "itemTitle",
+              type: "string",
+            },
+          ],
+          name: "AuctionCreated",
+          type: "event",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          name: "allAuctions",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          name: "auctionCreators",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
         },
         {
           inputs: [],
@@ -138,29 +355,78 @@ const deployedContracts = {
         {
           inputs: [
             {
-              internalType: "externalEuint32",
-              name: "inputEuint32",
-              type: "bytes32",
+              internalType: "string",
+              name: "_itemURI",
+              type: "string",
             },
             {
-              internalType: "bytes",
-              name: "inputProof",
-              type: "bytes",
+              internalType: "string",
+              name: "_itemTitle",
+              type: "string",
+            },
+            {
+              internalType: "string",
+              name: "_itemDescription",
+              type: "string",
+            },
+            {
+              internalType: "address",
+              name: "_paymentToken",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "_durationSeconds",
+              type: "uint256",
+            },
+            {
+              internalType: "uint8",
+              name: "_category",
+              type: "uint8",
+            },
+            {
+              internalType: "address",
+              name: "_nftContract",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "_nftTokenId",
+              type: "uint256",
             },
           ],
-          name: "decrement",
-          outputs: [],
+          name: "createAuction",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
           stateMutability: "nonpayable",
           type: "function",
         },
         {
           inputs: [],
-          name: "getCount",
+          name: "getAllAuctions",
           outputs: [
             {
-              internalType: "euint32",
+              internalType: "address[]",
               name: "",
-              type: "bytes32",
+              type: "address[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getAuctionCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
             },
           ],
           stateMutability: "view",
@@ -169,24 +435,86 @@ const deployedContracts = {
         {
           inputs: [
             {
-              internalType: "externalEuint32",
-              name: "inputEuint32",
-              type: "bytes32",
-            },
-            {
-              internalType: "bytes",
-              name: "inputProof",
-              type: "bytes",
+              internalType: "address",
+              name: "_auction",
+              type: "address",
             },
           ],
-          name: "increment",
-          outputs: [],
-          stateMutability: "nonpayable",
+          name: "getAuctionInfo",
+          outputs: [
+            {
+              components: [
+                {
+                  internalType: "address",
+                  name: "auctionAddress",
+                  type: "address",
+                },
+                {
+                  internalType: "address",
+                  name: "creator",
+                  type: "address",
+                },
+                {
+                  internalType: "string",
+                  name: "itemTitle",
+                  type: "string",
+                },
+                {
+                  internalType: "uint8",
+                  name: "category",
+                  type: "uint8",
+                },
+                {
+                  internalType: "uint256",
+                  name: "deadline",
+                  type: "uint256",
+                },
+                {
+                  internalType: "uint8",
+                  name: "status",
+                  type: "uint8",
+                },
+                {
+                  internalType: "uint256",
+                  name: "bidderCount",
+                  type: "uint256",
+                },
+              ],
+              internalType: "struct AuctionFactory.AuctionInfo",
+              name: "",
+              type: "tuple",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "offset",
+              type: "uint256",
+            },
+            {
+              internalType: "uint256",
+              name: "limit",
+              type: "uint256",
+            },
+          ],
+          name: "getAuctionsPaginated",
+          outputs: [
+            {
+              internalType: "address[]",
+              name: "",
+              type: "address[]",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 10333830,
+      deployedOnBlock: 10704756,
     },
   },
 } as const;

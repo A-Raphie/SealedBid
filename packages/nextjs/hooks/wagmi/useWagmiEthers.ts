@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { useAccount, useWalletClient } from "wagmi";
 
@@ -18,12 +18,8 @@ export const useWagmiEthers = (initialMockChains?: Readonly<Record<number, strin
       request: async (args: any) => {
         return await walletClient.request(args);
       },
-      on: () => {
-        console.log("Provider events not fully implemented for wagmi");
-      },
-      removeListener: () => {
-        console.log("Provider removeListener not fully implemented for wagmi");
-      },
+      on: () => {},
+      removeListener: () => {},
     } as ethers.Eip1193Provider;
 
     return new ethers.BrowserProvider(eip1193Provider);
@@ -31,21 +27,23 @@ export const useWagmiEthers = (initialMockChains?: Readonly<Record<number, strin
 
   const ethersReadonlyProvider = useMemo(() => {
     if (!ethersProvider) return undefined;
-
     const rpcUrl = initialMockChains?.[chainId || 0];
     if (rpcUrl) {
       return new ethers.JsonRpcProvider(rpcUrl);
     }
-
     return ethersProvider;
   }, [ethersProvider, initialMockChains, chainId]);
 
-  const ethersSigner = useMemo(() => {
-    if (!ethersProvider || !address) return undefined;
-    return new ethers.JsonRpcSigner(ethersProvider, address);
+  const [ethersSigner, setEthersSigner] = useState<ethers.JsonRpcSigner | ethers.ContractRunner | null>(null);
+
+  useEffect(() => {
+    if (!ethersProvider || !address) {
+      setEthersSigner(null);
+      return;
+    }
+    ethersProvider.getSigner().then(setEthersSigner).catch(() => setEthersSigner(null));
   }, [ethersProvider, address]);
 
-  // Stable refs consumers can reuse
   const ropRef = useRef<typeof ethersReadonlyProvider>(ethersReadonlyProvider);
   const chainIdRef = useRef<number | undefined>(chainId);
 

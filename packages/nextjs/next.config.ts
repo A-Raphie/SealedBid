@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   devIndicators: false,
+  serverExternalPackages: ["node-tfhe", "node-tkms", "@zama-fhe/relayer-sdk"],
   // Turbopack: resolve Node.js built-ins to empty modules for client bundle
   // Next.js 15.x uses experimental.turbo; Next 16+ uses turbopack
   experimental: {

@@ -36,8 +36,8 @@ export const DappWrapperWithProviders = ({ children }: { children: React.ReactNo
           avatar={BlockieAvatar}
           theme={mounted ? (isDarkMode ? darkTheme() : lightTheme()) : lightTheme()}
         >
-          <ProgressBar height="3px" color="#2299dd" />
-          <div className={`flex flex-col min-h-screen`}>
+          <ProgressBar height="3px" color="#FFD208" />
+          <div className={`flex flex-col min-h-screen overflow-x-hidden`}>
             <Header />
             <main className="relative flex flex-col flex-1">
               <InMemoryStorageProvider>{children}</InMemoryStorageProvider>
