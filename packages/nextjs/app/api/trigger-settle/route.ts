@@ -1,11 +1,13 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import SealedBidAuctionABI from "~~/contracts/SealedBidAuction.abi.json";
 import { decryptAndSettle, prewarmFHE } from "~~/lib/decrypt-and-settle";
 import { getDeployerWallet, getSettleProvider } from "~~/lib/rpc-config";
-import { getSettleState, setSettleDone, setSettleError, setSettlePending, clearSettleEntry } from "~~/lib/settle-cache";
+import { clearSettleEntry, getSettleState, setSettleDone, setSettleError, setSettlePending } from "~~/lib/settle-cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   try {
@@ -19,6 +21,9 @@ export async function GET(request: Request) {
     if (cached?.status === "done") {
       if (cached.winner) {
         return NextResponse.json({ settled: true, winner: cached.winner, winningBid: cached.winningBid });
+      }
+      if (cached.error) {
+        return NextResponse.json({ error: true, step: cached.error });
       }
       clearSettleEntry(addr);
     }
@@ -52,15 +57,24 @@ export async function GET(request: Request) {
       setSettlePending(addr, "Decrypting bids via FHE...");
       prewarmFHE();
 
-      decryptAndSettle(addr, wallet, provider)
-        .then(result => {
+      const backgroundWork = async () => {
+        try {
+          const result = await decryptAndSettle(addr, wallet, provider);
           if (result) {
             setSettleDone(addr, result.winnerAddr, String(result.winningBid));
           } else {
             setSettleError(addr, "decrypt failed");
           }
-        })
-        .catch((e: any) => setSettleError(addr, e.message?.slice(0, 100)));
+        } catch (e: any) {
+          setSettleError(addr, e.message?.slice(0, 100));
+        }
+      };
+
+      try {
+        after(backgroundWork);
+      } catch {
+        backgroundWork();
+      }
 
       return NextResponse.json({ pending: true, step: "Decrypting bids via FHE..." });
     }
@@ -69,7 +83,7 @@ export async function GET(request: Request) {
       setSettlePending(addr, "Ending auction...");
       prewarmFHE();
 
-      const runSettle = async () => {
+      const backgroundWork = async () => {
         try {
           const auctionWrite = new ethers.Contract(addr, SealedBidAuctionABI as any[], wallet);
           const tx = await auctionWrite.endAuction();
@@ -85,7 +99,12 @@ export async function GET(request: Request) {
           setSettleError(addr, e.message?.slice(0, 100));
         }
       };
-      runSettle();
+
+      try {
+        after(backgroundWork);
+      } catch {
+        backgroundWork();
+      }
 
       return NextResponse.json({ pending: true, step: "Ending auction..." });
     }

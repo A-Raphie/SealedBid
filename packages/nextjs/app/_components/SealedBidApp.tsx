@@ -10,12 +10,12 @@ import { type AuctionMetadata, CATEGORY_DEFAULTS, buildItemURI, parseItemURI } f
 
 const CATEGORIES = ["All", "NFT Art", "Procurement", "Real Estate", "Freelance", "Commodity"];
 const STATUS_BADGE: Record<number, { label: string; cls: string }> = {
-  0: { label: "Live", cls: "bg-green-500/15 text-green-400" },
-  1: { label: "Revealing", cls: "bg-amber-500/15 text-amber-400" },
-  2: { label: "Settled", cls: "bg-blue-500/15 text-blue-400" },
-  3: { label: "Canceled", cls: "bg-gray-500/15 text-gray-400" },
-  4: { label: "Expired", cls: "bg-red-500/15 text-red-400" },
-  5: { label: "Waiting", cls: "bg-amber-500/15 text-amber-400" },
+  0: { label: "Live", cls: "bg-black/85 text-emerald-300" },
+  1: { label: "Revealing", cls: "bg-black/85 text-amber-300" },
+  2: { label: "Settled", cls: "bg-black/85 text-sky-300" },
+  3: { label: "Canceled", cls: "bg-black/85 text-gray-400" },
+  4: { label: "Expired", cls: "bg-black/85 text-red-300" },
+  5: { label: "Waiting", cls: "bg-black/85 text-amber-300" },
 };
 
 function derivedStatus(status: number, deadline: number, now: number) {
@@ -559,7 +559,7 @@ function AuctionCardMyBid({
       <div className="aspect-[4/3] relative overflow-hidden">
         <img src={image} alt={info.itemTitle} className="w-full h-full object-cover" />
         <div className="absolute top-2 left-2 flex gap-1.5">
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-sm ${badge.cls}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.5)] ring-1 ring-black/20 ${badge.cls}`}>
             {badge.label}
           </span>
           {isWon && (
@@ -635,11 +635,11 @@ function AuctionCard({
           className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
           loading="lazy"
         />
-        <span className={`absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold ${badge.cls}`}>
+        <span className={`absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.5)] ring-1 ring-black/20 ${badge.cls}`}>
           {badge.label}
         </span>
         {hasUserBid && (
-          <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#FFD208]/20 text-[#FFD208]">
+          <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.5)] ring-1 ring-black/20 bg-black/85 text-yellow-300">
             Your Bid
           </span>
         )}
@@ -695,6 +695,9 @@ function AuctionDetail({
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkingStart, setCheckingStart] = useState(0);
+  const [settleStep, setSettleStep] = useState("");
+  const [settleError, setSettleError] = useState(false);
+  const autoSettleFired = useRef(false);
   const { auctionAddress, auctionData, placeBid, cancelAuction, isProcessing, processingStep, message } = auction;
 
   useEffect(() => {
@@ -702,6 +705,9 @@ function AuctionDetail({
     setChecking(false);
     setCheckingStart(0);
     setActiveTab("description");
+    setSettleStep("");
+    setSettleError(false);
+    autoSettleFired.current = false;
   }, [auctionAddress]);
 
   const isCreator = accountAddress?.toLowerCase() === auctionData.creator?.toLowerCase();
@@ -714,6 +720,13 @@ function AuctionDetail({
   const badge = STATUS_BADGE[derivedStatus(auctionData.status ?? 0, auctionData.deadline ?? 0, now)] ?? STATUS_BADGE[3];
   const catDefault = CATEGORY_DEFAULTS[auctionData.category ?? 0] ?? CATEGORY_DEFAULTS[0];
   const image = meta?.image ?? catDefault.image;
+  const needsSettle = isEnded || (isExpired && auctionData.bidderCount > 0);
+
+  useEffect(() => {
+    if (!auctionAddress || !needsSettle || autoSettleFired.current) return;
+    autoSettleFired.current = true;
+    fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
+  }, [auctionAddress, needsSettle]);
 
   const handleBid = async (amount: string) => {
     if (!amount || bidBelowMin(amount)) return;
@@ -990,7 +1003,7 @@ function AuctionDetail({
               </div>
             )}
 
-            {(isEnded || (isExpired && !isEnded && auctionData.bidderCount > 0)) && !checking && (
+            {needsSettle && !checking && !settleError && (
               <div className="bg-[#1a1f3a] rounded-xl p-4 text-center space-y-3">
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 text-[#FFD208]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1008,17 +1021,29 @@ function AuctionDetail({
                   onClick={async () => {
                     if (!auctionAddress || checking) return;
                     setChecking(true);
+                    setSettleError(false);
                     setCheckingStart(Date.now());
                     try {
                       const poll = async (attempts = 0) => {
-                        if (attempts > 40) return;
+                        if (attempts > 80) {
+                          setSettleError(true);
+                          return;
+                        }
                         const s = await auction.checkStatus();
                         if (s === 2) {
                           await auction.refetchAll();
                           return;
                         }
-                        fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
-                        await new Promise(res => setTimeout(res, 3000));
+                        const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
+                        if (res) {
+                          const data = await res.json().catch(() => ({} as any));
+                          if (data.error) {
+                            setSettleError(true);
+                            return;
+                          }
+                          if (data.step) setSettleStep(data.step);
+                        }
+                        await new Promise(res => setTimeout(res, 1500));
                         await poll(attempts + 1);
                       };
                       await poll();
@@ -1033,18 +1058,75 @@ function AuctionDetail({
               </div>
             )}
 
-            {(isEnded || (isExpired && !isEnded && auctionData.bidderCount > 0)) && checking && (
+            {needsSettle && !checking && settleError && (
+              <div className="bg-[#1a1f3a] rounded-xl p-4 text-center space-y-3">
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                  <p className="text-sm font-semibold text-white">FHE Relayer Unavailable</p>
+                </div>
+                <p className="text-xs text-gray-500">Could not determine winner. The FHE decryption service may be temporarily down.</p>
+                <button
+                  onClick={async () => {
+                    if (!auctionAddress || checking) return;
+                    setSettleError(false);
+                    setChecking(true);
+                    setCheckingStart(Date.now());
+                    try {
+                      const poll = async (attempts = 0) => {
+                        if (attempts > 80) {
+                          setSettleError(true);
+                          return;
+                        }
+                        const s = await auction.checkStatus();
+                        if (s === 2) {
+                          await auction.refetchAll();
+                          return;
+                        }
+                        const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
+                        if (res) {
+                          const data = await res.json().catch(() => ({} as any));
+                          if (data.error) {
+                            setSettleError(true);
+                            return;
+                          }
+                          if (data.step) setSettleStep(data.step);
+                        }
+                        await new Promise(res => setTimeout(res, 1500));
+                        await poll(attempts + 1);
+                      };
+                      await poll();
+                    } finally {
+                      setChecking(false);
+                    }
+                  }}
+                  className="bg-amber-500 text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-amber-400 cursor-pointer text-sm transition-all"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {needsSettle && checking && (
               <div className="bg-[#1a1f3a] rounded-xl p-4 text-center">
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 text-[#FFD208] animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <p className="text-sm font-semibold text-white">Determining winner&hellip;</p>
+                  <p className="text-sm font-semibold text-white">
+                    {settleStep || "Determining winner\u2026"}
+                  </p>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   {checkingStart > 0
-                    ? `~${Math.max(0, 60 - Math.floor((Date.now() - checkingStart) / 1000))}s remaining`
+                    ? `~${Math.max(0, 120 - Math.floor((Date.now() - checkingStart) / 1000))}s remaining`
                     : "FHE decryption in progress"}
                 </p>
               </div>
