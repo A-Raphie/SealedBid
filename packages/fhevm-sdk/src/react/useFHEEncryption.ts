@@ -91,7 +91,7 @@ export const useFHEEncryption = (params: {
       const enc = await Promise.race([
         input.encrypt(),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Encryption timed out — FHE relayer unavailable. Try again in a moment.")), 30000),
+          setTimeout(() => reject(new Error("Encryption timed out — FHE relayer unavailable. Try again in a moment.")), 90000),
         ),
       ]);
       return enc;
