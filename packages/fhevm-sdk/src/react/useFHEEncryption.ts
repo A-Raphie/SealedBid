@@ -10,7 +10,6 @@ export type EncryptResult = {
   inputProof: Uint8Array;
 };
 
-// Map external encrypted integer type to RelayerEncryptedInput builder method
 export const getEncryptionMethod = (internalType: string) => {
   switch (internalType) {
     case "externalEbool":
@@ -35,16 +34,13 @@ export const getEncryptionMethod = (internalType: string) => {
   }
 };
 
-// Convert Uint8Array or hex-like string to 0x-prefixed hex string
 export const toHex = (value: Uint8Array | string): `0x${string}` => {
   if (typeof value === "string") {
     return (value.startsWith("0x") ? value : `0x${value}`) as `0x${string}`;
   }
-  // value is Uint8Array
   return ("0x" + Buffer.from(value).toString("hex")) as `0x${string}`;
 };
 
-// Build contract params from EncryptResult and ABI for a given function
 export const buildParamsFromAbi = (enc: EncryptResult, abi: any[], functionName: string): any[] => {
   const fn = abi.find((item: any) => item.type === "function" && item.name === functionName);
   if (!fn) throw new Error(`Function ABI not found for ${functionName}`);
@@ -69,6 +65,25 @@ export const buildParamsFromAbi = (enc: EncryptResult, abi: any[], functionName:
   });
 };
 
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.substr(i, 2), 16);
+  }
+  return bytes;
+}
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 3000;
+const ENCRYPTION_TIMEOUT = 30000;
+
+export type EncryptStatus = {
+  attempt: number;
+  maxRetries: number;
+  serverFallback: boolean;
+};
+
 export const useFHEEncryption = (params: {
   instance: FhevmInstance | undefined;
   ethersSigner: ethers.JsonRpcSigner | undefined;
@@ -77,30 +92,60 @@ export const useFHEEncryption = (params: {
   const { instance, ethersSigner, contractAddress } = params;
 
   const canEncrypt = useMemo(
-    () => Boolean(instance && ethersSigner && contractAddress),
-    [instance, ethersSigner, contractAddress],
+    () => Boolean(contractAddress),
+    [contractAddress],
   );
 
   const encryptWith = useCallback(
-    async (buildFn: (builder: RelayerEncryptedInput) => void): Promise<EncryptResult | undefined> => {
-      if (!instance || !ethersSigner || !contractAddress) return undefined;
+    async (
+      weiValue: bigint,
+      onStatusChange?: (status: EncryptStatus) => void,
+    ): Promise<EncryptResult | undefined> => {
+      if (!contractAddress) return undefined;
+      const userAddress = ethersSigner ? await ethersSigner.getAddress() : undefined;
+      if (!userAddress) return undefined;
 
-      const userAddress = await ethersSigner.getAddress();
-      const input = instance.createEncryptedInput(contractAddress, userAddress) as RelayerEncryptedInput;
-      buildFn(input);
-      const enc = await Promise.race([
-        input.encrypt(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Encryption timed out — FHE relayer unavailable. Try again in a moment.")), 90000),
-        ),
-      ]);
-      return enc;
+      if (instance) {
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          onStatusChange?.({ attempt, maxRetries: MAX_RETRIES, serverFallback: false });
+          try {
+            const input = instance.createEncryptedInput(contractAddress, userAddress) as RelayerEncryptedInput;
+            (input as any).add64(weiValue);
+            const enc = await Promise.race([
+              input.encrypt(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Encryption timed out")), ENCRYPTION_TIMEOUT),
+              ),
+            ]);
+            return enc;
+          } catch {
+            if (attempt < MAX_RETRIES) {
+              await new Promise(r => setTimeout(r, RETRY_DELAY));
+            }
+          }
+        }
+      }
+
+      onStatusChange?.({ attempt: 0, maxRetries: 0, serverFallback: true });
+      try {
+        const res = await fetch("/api/encrypt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value: weiValue.toString(), contractAddress, userAddress }),
+        });
+        if (!res.ok) return undefined;
+        const data = await res.json();
+        if (!data.handles?.[0] || !data.inputProof) return undefined;
+        return {
+          handles: [hexToBytes(data.handles[0])],
+          inputProof: hexToBytes(data.inputProof),
+        };
+      } catch {
+        return undefined;
+      }
     },
     [instance, ethersSigner, contractAddress],
   );
 
-  return {
-    canEncrypt,
-    encryptWith,
-  } as const;
+  return { canEncrypt, encryptWith } as const;
 };

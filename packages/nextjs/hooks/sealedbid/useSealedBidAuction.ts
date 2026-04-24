@@ -162,8 +162,12 @@ export function useSealedBidAuction(parameters: {
       setMessage("Encrypting your bid...");
       await new Promise(r => setTimeout(r, 50));
       try {
-        const enc = await encryptWith(builder => {
-          (builder as any).add64(weiValue);
+        const enc = await encryptWith(weiValue, status => {
+          if (status.serverFallback) {
+            setMessage("Trying server-side encryption...");
+          } else if (status.attempt > 1) {
+            setMessage(`Retrying encryption (${status.attempt}/${status.maxRetries})...`);
+          }
         });
         if (!enc) {
           setMessage("Encryption failed — Zama FHE relayer is unavailable. Please try again.");

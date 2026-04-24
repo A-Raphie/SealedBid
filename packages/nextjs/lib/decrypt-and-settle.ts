@@ -8,7 +8,7 @@ const MAX_RETRIES = 3;
 let cachedInstance: any = null;
 let instancePromise: Promise<any> | null = null;
 
-async function getFHEInstance() {
+export async function getFHEInstance() {
   if (cachedInstance) return cachedInstance;
   if (instancePromise) return instancePromise;
   instancePromise = (async () => {
