@@ -59,7 +59,7 @@ export async function getSepoliaProvider(): Promise<ethers.JsonRpcProvider> {
 
 export function getSepoliaProviderSync(): ethers.JsonRpcProvider {
   if (_provider) return _provider;
-  return syncProvider(SEPOLIA_RPCS[1]);
+  return syncProvider(SEPOLIA_RPCS[2]);
 }
 
 let _settleProvider: ethers.JsonRpcProvider | null = null;
