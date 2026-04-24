@@ -166,7 +166,7 @@ export function useSealedBidAuction(parameters: {
           (builder as any).add64(weiValue);
         });
         if (!enc) {
-          setMessage("Encryption failed — FHE instance or signer not available");
+          setMessage("Encryption failed — Zama FHE relayer is unavailable. Please try again.");
           setProcessingStep("error");
           setIsProcessing(false);
           return;

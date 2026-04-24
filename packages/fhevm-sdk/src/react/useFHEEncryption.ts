@@ -88,7 +88,12 @@ export const useFHEEncryption = (params: {
       const userAddress = await ethersSigner.getAddress();
       const input = instance.createEncryptedInput(contractAddress, userAddress) as RelayerEncryptedInput;
       buildFn(input);
-      const enc = await input.encrypt();
+      const enc = await Promise.race([
+        input.encrypt(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Encryption timed out — FHE relayer unavailable. Try again in a moment.")), 30000),
+        ),
+      ]);
       return enc;
     },
     [instance, ethersSigner, contractAddress],
