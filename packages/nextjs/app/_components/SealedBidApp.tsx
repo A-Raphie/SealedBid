@@ -86,7 +86,10 @@ export const SealedBidApp = () => {
       switchChain?.({ chainId: 11155111 });
     }
   }, [accountAddress, chainId, switchChain]);
-  const provider = useMemo(() => (typeof window !== "undefined" ? (window as any).ethereum : undefined), []);
+  const provider = useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    return (window as any).ethereum || "https://ethereum-sepolia-rpc.publicnode.com";
+  }, []);
   const initialMockChains = { 31337: "http://localhost:8545" };
 
   const { instance: fhevmInstance } = useFhevm({ provider, chainId, initialMockChains, enabled: true });
