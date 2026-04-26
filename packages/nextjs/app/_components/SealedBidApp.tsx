@@ -195,7 +195,6 @@ export const SealedBidApp = () => {
 
   useEffect(() => {
     if (cacheLoadingRef.current) return;
-    if (factory.auctionAddresses.length === 0) return;
     const existingKeys = Object.keys(auctionDetails);
     const toFetch = factory.auctionAddresses.filter(a => !existingKeys.includes(a));
     if (toFetch.length === 0) {
@@ -252,9 +251,8 @@ export const SealedBidApp = () => {
     return null;
   };
 
-  const auctionsList = factory.auctionAddresses
-    .map((addr, idx) => {
-      const d = auctionDetails[addr];
+  const auctionsList = Object.entries(auctionDetails)
+    .map(([addr, d], idx) => {
       if (!d) return null;
       return { ...d, addr, idx, meta: getMeta(d.itemURI) };
     })
