@@ -129,6 +129,7 @@ export const SealedBidApp = () => {
   const prevDeadlinesRef = useRef<Record<string, number>>({});
   const seenWinsRef = useRef<Set<string>>(new Set());
   const replenishFired = useRef(false);
+  const cacheLoadingRef = useRef(false);
 
   useEffect(() => {
     if (replenishFired.current) return;
@@ -172,6 +173,7 @@ export const SealedBidApp = () => {
 
   useEffect(() => {
     if (Object.keys(auctionDetails).length > 0) return;
+    cacheLoadingRef.current = true;
     setDetailsLoading(true);
     fetch("/api/auctions")
       .then(r => r.json())
@@ -183,16 +185,17 @@ export const SealedBidApp = () => {
           factory.refetchAuctions();
         }
         setDetailsLoading(false);
+        cacheLoadingRef.current = false;
       })
       .catch(() => {
         setDetailsLoading(false);
+        cacheLoadingRef.current = false;
       });
   }, []);
 
   useEffect(() => {
-    if (factory.auctionAddresses.length === 0) {
-      return;
-    }
+    if (cacheLoadingRef.current) return;
+    if (factory.auctionAddresses.length === 0) return;
     const existingKeys = Object.keys(auctionDetails);
     const toFetch = factory.auctionAddresses.filter(a => !existingKeys.includes(a));
     if (toFetch.length === 0) {
@@ -229,26 +232,17 @@ export const SealedBidApp = () => {
     const existing = Object.keys(auctionDetails);
     if (existing.length === 0) return;
     const refresh = async () => {
-      const BATCH = 4;
-      const updates: Record<string, AuctionInfo> = {};
-      for (let i = 0; i < existing.length; i += BATCH) {
-        const batch = existing.slice(i, i + BATCH);
-        const entries = await Promise.all(
-          batch.map(async addr => {
-            const info = await factory.getAuctionInfo(addr);
-            return info ? ([addr, info] as const) : null;
-          }),
-        );
-        for (const entry of entries) {
-          if (entry) updates[entry[0]] = entry[1];
+      try {
+        const r = await fetch("/api/auctions");
+        const data = await r.json();
+        if (data.details) {
+          setAuctionDetails(data.details);
         }
-        if (i + BATCH < existing.length) await new Promise(r => setTimeout(r, 300));
-      }
-      setAuctionDetails(prev => ({ ...prev, ...updates }));
+      } catch {}
     };
-    const interval = setInterval(refresh, 30000);
+    const interval = setInterval(refresh, 20000);
     return () => clearInterval(interval);
-  }, [Object.keys(auctionDetails).length]);
+  }, []);
 
   const getMeta = (uri?: string): AuctionMetadata | null => {
     if (uri && uri !== "") {
