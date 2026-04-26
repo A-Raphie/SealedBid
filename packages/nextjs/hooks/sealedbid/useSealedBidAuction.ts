@@ -145,18 +145,18 @@ export function useSealedBidAuction(parameters: {
   });
 
   const placeBid = useCallback(
-    async (bidAmount: string) => {
-      if (!auctionAddress || isProcessing) return;
+    async (bidAmount: string): Promise<boolean> => {
+      if (!auctionAddress || isProcessing) return false;
       if (!instance) {
         setMessage("FHE not initialized — please wait or refresh the page");
-        return;
+        return false;
       }
       if (!accountAddress) {
         setMessage("Please connect your wallet first");
-        return;
+        return false;
       }
       const weiValue = BigInt(Math.round(parseFloat(bidAmount) * 1e18));
-      if (!weiValue || weiValue <= 0n) return;
+      if (!weiValue || weiValue <= 0n) return false;
       setIsProcessing(true);
       setProcessingStep("encrypting");
       setMessage("Encrypting your bid...");
@@ -173,7 +173,7 @@ export function useSealedBidAuction(parameters: {
           setMessage("Encryption failed — Zama FHE relayer is unavailable. Please try again.");
           setProcessingStep("error");
           setIsProcessing(false);
-          return;
+          return false;
         }
 
         setProcessingStep("submitting");
@@ -193,6 +193,7 @@ export function useSealedBidAuction(parameters: {
         setProcessingStep("done");
         setMessage("Bid placed successfully!");
         await loadAuctionData();
+        return true;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setProcessingStep("error");
@@ -201,6 +202,7 @@ export function useSealedBidAuction(parameters: {
             ? "Bid cancelled — you rejected the transaction in your wallet."
             : `Bid failed: ${msg.slice(0, 120)}`,
         );
+        return false;
       } finally {
         setIsProcessing(false);
         setTimeout(() => setProcessingStep("idle"), 3000);

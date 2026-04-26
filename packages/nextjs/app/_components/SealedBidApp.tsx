@@ -130,6 +130,7 @@ export const SealedBidApp = () => {
   const seenWinsRef = useRef<Set<string>>(new Set());
   const replenishFired = useRef(false);
   const cacheLoadingRef = useRef(false);
+  const cacheLoadedRef = useRef(false);
 
   useEffect(() => {
     if (replenishFired.current) return;
@@ -186,10 +187,12 @@ export const SealedBidApp = () => {
         }
         setDetailsLoading(false);
         cacheLoadingRef.current = false;
+        cacheLoadedRef.current = true;
       })
       .catch(() => {
         setDetailsLoading(false);
         cacheLoadingRef.current = false;
+        cacheLoadedRef.current = true;
       });
   }, []);
 
@@ -228,8 +231,6 @@ export const SealedBidApp = () => {
   }, [factory.auctionAddresses]);
 
   useEffect(() => {
-    const existing = Object.keys(auctionDetails);
-    if (existing.length === 0) return;
     const refresh = async () => {
       try {
         const r = await fetch("/api/auctions");
@@ -239,9 +240,12 @@ export const SealedBidApp = () => {
         }
       } catch {}
     };
-    const interval = setInterval(refresh, 20000);
+    const hasActive = Object.values(auctionDetails).some(
+      d => d.status === 0 && (d.deadline === 0 || d.deadline > Math.floor(Date.now() / 1000)),
+    );
+    const interval = setInterval(refresh, hasActive ? 20000 : 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [auctionDetails]);
 
   const getMeta = (uri?: string): AuctionMetadata | null => {
     if (uri && uri !== "") {
@@ -514,16 +518,9 @@ export const SealedBidApp = () => {
                   {searchQuery ? `Results for "${searchQuery}"` : "All Auctions"}
                 </h2>
                 {filtered.length === 0 && activeAuctions.length === 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
-                      <div key={i} className="bg-[#1a1f3a] rounded-xl overflow-hidden">
-                        <div className="aspect-[4/3] skeleton-shimmer" />
-                        <div className="p-4 space-y-2.5">
-                          <div className="h-4 skeleton-shimmer rounded w-3/4" />
-                          <div className="h-3 skeleton-shimmer rounded w-1/2" />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <div className="w-6 h-6 border-2 border-[#FFD208]/30 border-t-[#FFD208] rounded-full animate-spin" />
+                    <p className="text-sm text-gray-400">Creating auctions...</p>
                   </div>
                 ) : filtered.length === 0 ? (
                   <div className="text-center py-16 text-gray-500">
@@ -829,8 +826,8 @@ function AuctionDetail({
 
   const handleBid = async (amount: string) => {
     if (!amount || bidBelowMin(amount)) return;
-    await placeBid(amount);
-    if (auctionAddress) onBidPlaced(auctionAddress);
+    const ok = await placeBid(amount);
+    if (ok && auctionAddress) onBidPlaced(auctionAddress);
   };
 
   useEffect(() => {
