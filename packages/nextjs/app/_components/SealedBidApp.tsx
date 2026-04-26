@@ -97,6 +97,9 @@ export const SealedBidApp = () => {
   const fheReady = !!fhevmInstance;
 
   const [selectedAuction, setSelectedAuction] = useState<string | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
+  const splashStart = useRef(Date.now());
   const [activeTab, setActiveTab] = useState<"all" | "mybids">("all");
   const [catFilter, setCatFilter] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -259,6 +262,18 @@ export const SealedBidApp = () => {
 
   const lastFinalizeRef = useRef(0);
   useEffect(() => {
+    if (showSplash && !detailsLoading) {
+      const elapsed = Date.now() - splashStart.current;
+      const remaining = Math.max(0, 3000 - elapsed);
+      const timer = setTimeout(() => {
+        setSplashFading(true);
+        setTimeout(() => setShowSplash(false), 500);
+      }, remaining);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash, detailsLoading]);
+
+  useEffect(() => {
     if (!detailsLoading) {
       const t = Date.now();
       if (t - lastFinalizeRef.current > 45000) {
@@ -339,6 +354,48 @@ export const SealedBidApp = () => {
 
   return (
     <div className="min-h-screen bg-[#0a0e27]">
+      {showSplash && (
+        <div
+          className={`fixed inset-0 z-50 bg-[#0a0e27] flex flex-col items-center justify-center transition-opacity duration-500 ${splashFading ? "opacity-0" : "opacity-100"}`}
+        >
+          <div className="flex flex-col items-center">
+            <div
+              className="w-20 h-20 rounded-2xl bg-[#FFD208]/10 flex items-center justify-center mb-6"
+              style={{ animation: "sealPulse 2s ease-in-out infinite, splashGlow 2s ease-in-out infinite" }}
+            >
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFD208" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <circle cx="12" cy="16.5" r="1.5" fill="#FFD208" stroke="none" />
+              </svg>
+            </div>
+            <h1
+              className="text-3xl font-bold text-[#FFD208] tracking-tight"
+              style={{ animation: "fadeSlideUp 0.6s ease-out 0.3s both" }}
+            >
+              SealedBid
+            </h1>
+            <p
+              className="text-gray-500 text-sm mt-2 tracking-wide"
+              style={{ animation: "fadeSlideUp 0.6s ease-out 0.6s both" }}
+            >
+              Encrypted On-Chain Auctions
+            </p>
+            <div
+              className="mt-8 flex gap-1"
+              style={{ animation: "fadeSlideUp 0.6s ease-out 0.9s both" }}
+            >
+              {[0, 1, 2].map(i => (
+                <div
+                  key={i}
+                  className="w-1.5 h-1.5 rounded-full bg-[#FFD208]/40"
+                  style={{ animation: "sealPulse 1.2s ease-in-out infinite", animationDelay: `${i * 0.2}s` }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="border-b border-white/[0.06] bg-[#0d1129]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 py-3 sm:py-4">

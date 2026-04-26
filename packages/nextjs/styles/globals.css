@@ -152,3 +152,18 @@ input[type="number"] {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+@keyframes sealPulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes splashGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,210,8,0.15); }
+  50% { box-shadow: 0 0 40px rgba(255,210,8,0.3); }
+}
