@@ -276,8 +276,6 @@ export const SealedBidApp = () => {
     .filter(isShortDuration)
     .slice(0, 8);
 
-  const totalBids = activeAuctions.reduce((sum, d) => sum + d.bidderCount, 0);
-
   const lastFinalizeRef = useRef(0);
   useEffect(() => {
     if (!detailsLoading) {
