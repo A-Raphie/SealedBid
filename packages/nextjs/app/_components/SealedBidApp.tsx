@@ -462,7 +462,7 @@ export const SealedBidApp = () => {
                 onClick={() => setActiveTab("mybids")}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${activeTab === "mybids" ? "bg-[#FFD208] text-[#0a0e27]" : "text-gray-400 hover:text-white"}`}
               >
-                My Bids{accountAddress ? ` (${myBidAuctions.length})` : ""}
+                My Encrypted Bids{accountAddress ? ` (${myBidAuctions.length})` : ""}
               </button>
             </div>
             {activeTab === "all" && (
@@ -490,16 +490,6 @@ export const SealedBidApp = () => {
                 <option value="time">Time (Newest)</option>
                 <option value="result">Result (Won first)</option>
               </select>
-            )}
-            {activeTab === "all" && (
-              <span className="ml-auto hidden sm:flex items-center gap-3 text-xs text-gray-500 whitespace-nowrap">
-                <span>{totalBids} Encrypted Bids</span>
-                <span className="text-white/10">|</span>
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  FHE Protected
-                </span>
-              </span>
             )}
           </div>
         </div>
