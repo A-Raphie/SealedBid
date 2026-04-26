@@ -262,7 +262,7 @@ export const SealedBidApp = () => {
     const hasActive = Object.values(auctionDetails).some(
       d => d.status === 0 && (d.deadline === 0 || d.deadline > Math.floor(Date.now() / 1000)),
     );
-    const interval = setInterval(refresh, hasActive ? 20000 : 5000);
+    const interval = setInterval(refresh, hasActive ? 30000 : 10000);
     return () => clearInterval(interval);
   }, [auctionDetails]);
 
@@ -301,7 +301,7 @@ export const SealedBidApp = () => {
   useEffect(() => {
     if (!detailsLoading) {
       const t = Date.now();
-      if (t - lastFinalizeRef.current > 45000) {
+      if (t - lastFinalizeRef.current > 90000) {
         lastFinalizeRef.current = t;
         fetch("/api/auto-finalize")
           .then(r => r.json())

@@ -134,7 +134,7 @@ export function useSealedBidAuction(parameters: {
       auctionData.status === 0
         ? (auctionData.deadline ?? 0) > 0 && (auctionData.deadline ?? 0) <= Math.floor(Date.now() / 1000)
         : auctionData.status === 1;
-    const interval = setInterval(loadAuctionData, needsFastPoll ? 5000 : 15000);
+    const interval = setInterval(loadAuctionData, needsFastPoll ? 15000 : 30000);
     return () => clearInterval(interval);
   }, [loadAuctionData, auctionData.status, auctionData.deadline]);
 

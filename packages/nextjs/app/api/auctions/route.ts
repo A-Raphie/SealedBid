@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
 import AuctionFactoryABI from "~~/contracts/AuctionFactory.abi.json";
@@ -15,7 +14,7 @@ type CachedData = {
 };
 
 let cache: CachedData | null = null;
-const CACHE_TTL = 15_000;
+const CACHE_TTL = 60_000;
 let refreshing = false;
 
 async function refreshCache() {
@@ -78,7 +77,6 @@ export async function GET() {
     }
 
     if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
-      after(refreshCache);
       return NextResponse.json(cache);
     }
 

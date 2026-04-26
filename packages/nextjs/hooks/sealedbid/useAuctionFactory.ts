@@ -50,7 +50,7 @@ export function useAuctionFactory(parameters?: {
 
   useEffect(() => {
     loadFactoryData();
-    const interval = setInterval(loadFactoryData, 20000);
+    const interval = setInterval(loadFactoryData, 60000);
     return () => clearInterval(interval);
   }, [loadFactoryData]);
 
