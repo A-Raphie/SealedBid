@@ -104,7 +104,7 @@ export const SealedBidApp = () => {
     const timer = setTimeout(() => {
       setSplashFading(true);
       setTimeout(() => setShowSplash(false), 500);
-    }, 3500);
+    }, 1500);
     return () => clearTimeout(timer);
   }, []);
   const [activeTab, setActiveTab] = useState<"all" | "mybids">("all");
