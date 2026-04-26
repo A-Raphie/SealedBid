@@ -464,7 +464,19 @@ export const SealedBidApp = () => {
                 <h2 className="text-base font-semibold text-white mb-4 tracking-tight">
                   {searchQuery ? `Results for "${searchQuery}"` : "All Auctions"}
                 </h2>
-                {filtered.length === 0 ? (
+                {filtered.length === 0 && activeAuctions.length === 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+                      <div key={i} className="bg-[#1a1f3a] rounded-xl overflow-hidden">
+                        <div className="aspect-[4/3] skeleton-shimmer" />
+                        <div className="p-4 space-y-2.5">
+                          <div className="h-4 skeleton-shimmer rounded w-3/4" />
+                          <div className="h-3 skeleton-shimmer rounded w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : filtered.length === 0 ? (
                   <div className="text-center py-16 text-gray-500">
                     <p className="text-sm">No auctions found</p>
                   </div>

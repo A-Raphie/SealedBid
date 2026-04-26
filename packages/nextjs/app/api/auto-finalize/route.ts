@@ -101,7 +101,7 @@ export async function GET() {
     }
 
     const currentActive = auctionInfos.filter(a => a.status === 0).length;
-    const toCreate = Math.min(2, Math.max(0, TARGET_ACTIVE - currentActive));
+    const toCreate = Math.min(2, Math.max(0, TARGET_ACTIVE + 3 - currentActive));
 
     if (toCreate > 0) {
       const templates = pickRandom(TEMPLATES, toCreate);
