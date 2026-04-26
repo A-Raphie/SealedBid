@@ -171,19 +171,36 @@ export const SealedBidApp = () => {
   }, [toast]);
 
   useEffect(() => {
+    if (Object.keys(auctionDetails).length > 0) return;
+    setDetailsLoading(true);
+    fetch("/api/auctions")
+      .then(r => r.json())
+      .then(data => {
+        if (data.details && Object.keys(data.details).length > 0) {
+          setAuctionDetails(data.details);
+        }
+        if (data.addresses && data.addresses.length > 0) {
+          factory.refetchAuctions();
+        }
+        setDetailsLoading(false);
+      })
+      .catch(() => {
+        setDetailsLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
     if (factory.auctionAddresses.length === 0) {
+      return;
+    }
+    const existingKeys = Object.keys(auctionDetails);
+    const toFetch = factory.auctionAddresses.filter(a => !existingKeys.includes(a));
+    if (toFetch.length === 0) {
       setDetailsLoading(false);
       return;
     }
-    const isFirstLoad = Object.keys(auctionDetails).length === 0;
-    if (isFirstLoad) setDetailsLoading(true);
+    setDetailsLoading(true);
     const load = async () => {
-      const addresses = factory.auctionAddresses;
-      const toFetch = isFirstLoad ? addresses : addresses.filter(a => !auctionDetails[a]);
-      if (toFetch.length === 0) {
-        setDetailsLoading(false);
-        return;
-      }
       const BATCH_SIZE = 4;
       const details: Record<string, AuctionInfo> = {};
       for (let i = 0; i < toFetch.length; i += BATCH_SIZE) {
