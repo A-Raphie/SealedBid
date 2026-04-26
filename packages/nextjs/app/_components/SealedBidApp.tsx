@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFhevm } from "@fhevm-sdk";
 import confetti from "canvas-confetti";
 import { useAccount, useSwitchChain } from "wagmi";
@@ -99,14 +99,25 @@ export const SealedBidApp = () => {
   const [selectedAuction, setSelectedAuction] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
+  const splashDoneRef = useRef(false);
+  const minTimeRef = useRef(false);
+
+  const startFade = useCallback(() => {
+    if (splashDoneRef.current) return;
+    splashDoneRef.current = true;
+    setSplashFading(true);
+    setTimeout(() => setShowSplash(false), 500);
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setSplashFading(true);
-      setTimeout(() => setShowSplash(false), 500);
+    const min = setTimeout(() => {
+      minTimeRef.current = true;
     }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    const max = setTimeout(() => {
+      startFade();
+    }, 4000);
+    return () => { clearTimeout(min); clearTimeout(max); };
+  }, [startFade]);
   const [activeTab, setActiveTab] = useState<"all" | "mybids">("all");
   const [catFilter, setCatFilter] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -131,6 +142,14 @@ export const SealedBidApp = () => {
   const replenishFired = useRef(false);
   const cacheLoadingRef = useRef(false);
   const cacheLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!minTimeRef.current) return;
+    if (splashDoneRef.current) return;
+    if (Object.keys(auctionDetails).length > 0) {
+      startFade();
+    }
+  }, [auctionDetails, startFade]);
 
   useEffect(() => {
     if (replenishFired.current) return;
