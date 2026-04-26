@@ -118,6 +118,17 @@ export const SealedBidApp = () => {
   const [showCreate, setShowCreate] = useState(false);
   const prevDeadlinesRef = useRef<Record<string, number>>({});
   const seenWinsRef = useRef<Set<string>>(new Set());
+  const replenishFired = useRef(false);
+
+  useEffect(() => {
+    if (replenishFired.current) return;
+    replenishFired.current = true;
+    fetch("/api/replenish").then(r => r.json()).then(data => {
+      if (data.created > 0) {
+        setTimeout(() => factory.refetchAuctions(), 3000);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
