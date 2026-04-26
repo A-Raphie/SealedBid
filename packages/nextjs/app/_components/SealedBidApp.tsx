@@ -125,7 +125,12 @@ export const SealedBidApp = () => {
     replenishFired.current = true;
     fetch("/api/replenish").then(r => r.json()).then(data => {
       if (data.created > 0) {
-        setTimeout(() => factory.refetchAuctions(), 3000);
+        let polls = 0;
+        const poll = setInterval(() => {
+          factory.refetchAuctions();
+          polls++;
+          if (polls >= 5) clearInterval(poll);
+        }, 3000);
       }
     }).catch(() => {});
   }, []);

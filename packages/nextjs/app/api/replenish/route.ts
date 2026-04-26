@@ -18,21 +18,17 @@ export async function GET() {
     const factoryWrite = new ethers.Contract(FACTORY_ADDRESS, AuctionFactoryABI as any[], wallet);
 
     const allAddresses: string[] = await factoryRead.getAllAuctions();
+    const recent = allAddresses.slice(-16);
 
     let activeCount = 0;
-    const BATCH = 4;
-    for (let i = 0; i < allAddresses.length; i += BATCH) {
-      const batch = allAddresses.slice(i, i + BATCH);
-      const infos = await Promise.allSettled(
-        batch.map(async addr => {
-          const info = await factoryRead.getAuctionInfo(addr);
-          return Number(info.status);
-        }),
-      );
-      for (const info of infos) {
-        if (info.status === "fulfilled" && info.value === 0) activeCount++;
-      }
-      if (i + BATCH < allAddresses.length) await new Promise(r => setTimeout(r, 300));
+    const infos = await Promise.allSettled(
+      recent.map(async addr => {
+        const info = await factoryRead.getAuctionInfo(addr);
+        return Number(info.status);
+      }),
+    );
+    for (const info of infos) {
+      if (info.status === "fulfilled" && info.value === 0) activeCount++;
     }
 
     const toCreate = Math.max(0, TARGET_ACTIVE - activeCount);
@@ -41,31 +37,27 @@ export async function GET() {
     }
 
     const templates = pickRandom(TEMPLATES, toCreate);
+    const nonce = await wallet.getNonce("latest");
     const results: string[] = [];
 
-    for (let i = 0; i < templates.length; i++) {
-      const t = templates[i];
-      if (i > 0) await new Promise(r => setTimeout(r, 3000));
-      try {
-        const itemURI = JSON.stringify(t.meta);
-        const tx = await factoryWrite.createAuction(
-          itemURI,
-          t.title,
-          t.description,
-          ethers.ZeroAddress,
-          AUCTION_DURATION,
-          t.category,
-          ethers.ZeroAddress,
-          0,
-        );
-        const receipt = await tx.wait();
-        results.push(`${t.title} — ${receipt.hash.slice(0, 10)}`);
-      } catch (e: any) {
+    const txPromises = templates.map((t, i) => {
+      const itemURI = JSON.stringify(t.meta);
+      return factoryWrite.createAuction(
+        itemURI, t.title, t.description, ethers.ZeroAddress,
+        AUCTION_DURATION, t.category, ethers.ZeroAddress, 0,
+        { nonce: nonce + i },
+      ).then(tx => {
+        results.push(`${t.title} — ${tx.hash.slice(0, 10)}`);
+        return tx.hash;
+      }).catch((e: any) => {
         results.push(`FAIL: ${t.title} — ${e.message?.slice(0, 80)}`);
-      }
-    }
+        return null;
+      });
+    });
 
-    return NextResponse.json({ activeCount, created: results.length, results });
+    await Promise.all(txPromises);
+
+    return NextResponse.json({ activeCount, created: results.filter(r => !r.startsWith("FAIL")).length, results });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
