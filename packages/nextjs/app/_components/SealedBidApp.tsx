@@ -99,7 +99,14 @@ export const SealedBidApp = () => {
   const [selectedAuction, setSelectedAuction] = useState<string | null>(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
-  const splashStart = useRef(Date.now());
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSplashFading(true);
+      setTimeout(() => setShowSplash(false), 500);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, []);
   const [activeTab, setActiveTab] = useState<"all" | "mybids">("all");
   const [catFilter, setCatFilter] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -261,18 +268,6 @@ export const SealedBidApp = () => {
   const totalBids = activeAuctions.reduce((sum, d) => sum + d.bidderCount, 0);
 
   const lastFinalizeRef = useRef(0);
-  useEffect(() => {
-    if (showSplash && !detailsLoading) {
-      const elapsed = Date.now() - splashStart.current;
-      const remaining = Math.max(0, 3000 - elapsed);
-      const timer = setTimeout(() => {
-        setSplashFading(true);
-        setTimeout(() => setShowSplash(false), 500);
-      }, remaining);
-      return () => clearTimeout(timer);
-    }
-  }, [showSplash, detailsLoading]);
-
   useEffect(() => {
     if (!detailsLoading) {
       const t = Date.now();
