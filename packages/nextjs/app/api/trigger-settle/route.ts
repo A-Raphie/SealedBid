@@ -68,12 +68,15 @@ export async function GET(request: Request) {
       const backgroundWork = async () => {
         try {
           const auctionWrite = new ethers.Contract(addr, SealedBidAuctionABI as any[], wallet);
-          setSettleStep(addr, "Submitting endAuction tx...");
+          setSettleStep(addr, "Ending the auction...");
           const tx = await auctionWrite.endAuction();
-          setSettleStep(addr, "Waiting for endAuction confirmation...");
-          await tx.wait();
+          setSettleStep(addr, "Confirming on blockchain...");
+          await Promise.race([
+            tx.wait(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
+          ]);
 
-          setSettleStep(addr, "Auction ended. Starting FHE decryption...");
+          setSettleStep(addr, "Auction ended. Decrypting bids...");
           const attempt = incrementAttempt(addr);
           setSettleStep(addr, `Decrypting bids (attempt ${attempt})...`);
 
@@ -81,7 +84,7 @@ export async function GET(request: Request) {
           if (result) {
             setSettleDone(addr, result.winnerAddr, String(result.winningBid));
           } else {
-            setSettleStep(addr, "Decrypt returned no result — will retry on next poll");
+            setSettleStep(addr, "Still processing — will retry on next poll");
           }
         } catch (e: any) {
           console.error(`trigger-settle background error for ${addr}:`, e.message?.slice(0, 120));
@@ -103,7 +106,7 @@ export async function GET(request: Request) {
           if (result) {
             setSettleDone(addr, result.winnerAddr, String(result.winningBid));
           } else {
-            setSettleStep(addr, "Decrypt returned no result — will retry on next poll");
+            setSettleStep(addr, "Still processing — will retry on next poll");
           }
         } catch (e: any) {
           console.error(`trigger-settle decrypt error for ${addr}:`, e.message?.slice(0, 120));

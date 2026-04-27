@@ -34,7 +34,7 @@ export async function decryptAndSettle(
   const auction = new ethers.Contract(auctionAddr, SealedBidAuctionABI as any[], provider);
   const auctionWrite = new ethers.Contract(auctionAddr, SealedBidAuctionABI as any[], wallet);
 
-  setSettleStep(auctionAddr, "Reading auction state...");
+  setSettleStep(auctionAddr, "Reading auction data...");
   const [winningBidHandle, winningIndexHandle, bidders, winner, resultsComputed] = await Promise.all([
     auction.getWinningBid(),
     auction.getWinningBidderIndex(),
@@ -50,10 +50,10 @@ export async function decryptAndSettle(
   }
   if (bidders.length === 0) return null;
 
-  setSettleStep(auctionAddr, "Connecting to FHE relayer...");
+  setSettleStep(auctionAddr, "Connecting to encryption service...");
   const instance = await getFHEInstance();
 
-  setSettleStep(auctionAddr, "Generating decryption keypair...");
+  setSettleStep(auctionAddr, "Preparing decryption...");
   const keypair = instance.generateKeypair();
   const startTimestamp = Math.floor(Date.now() / 1000);
   const durationDays = 365;
@@ -61,7 +61,7 @@ export async function decryptAndSettle(
 
   const eip712 = instance.createEIP712(keypair.publicKey, contractAddresses, startTimestamp, durationDays);
 
-  setSettleStep(auctionAddr, "Signing decryption request...");
+  setSettleStep(auctionAddr, "Authorizing decryption...");
   const signature = await wallet.signTypedData(
     eip712.domain,
     {
@@ -80,7 +80,7 @@ export async function decryptAndSettle(
 
   if (handles.length === 0) return null;
 
-  setSettleStep(auctionAddr, "Decrypting via FHE homomorphic comparison...");
+  setSettleStep(auctionAddr, "Decrypting bids...");
   const decrypted = await instance.userDecrypt(
     handles as [{ handle: string; contractAddress: string }, ...{ handle: string; contractAddress: string }[]],
     keypair.privateKey,
@@ -103,11 +103,14 @@ export async function decryptAndSettle(
   const bidVal = decrypted[winningBidHandle];
   const winningBid = bidVal !== undefined && bidVal !== null ? BigInt(bidVal) : 0n;
 
-  setSettleStep(auctionAddr, "Submitting result on-chain...");
+  setSettleStep(auctionAddr, "Recording result...");
   const settleTx = await auctionWrite.settleAuction(winnerAddr, winningBid);
 
-  setSettleStep(auctionAddr, "Confirming transaction...");
-  await settleTx.wait();
+  setSettleStep(auctionAddr, "Confirming...");
+  await Promise.race([
+    settleTx.wait(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
+  ]);
 
   return { winnerAddr, winningBid };
 }
