@@ -55,11 +55,15 @@ for (uint256 i = 1; i < bidders.length; i++) {
 - **Image upload** via imgbb CDN with client-side compression
 - **Create Auction modal** — duration picker with seconds/minutes/hours/days
 - **Cancel Auction** — creators can cancel before any bids
-- **"My Bids" tab** — paginated view of auctions you've bid on
+- **"My Encrypted Bids" tab** — paginated view of auctions you've bid on, persisted via localStorage
 - **Viewer-specific UX** — winner (green + confetti), loser (red), non-bidder (neutral)
+- **Adaptive splash screen** — 1.5s minimum, dismisses when data ready, 4s maximum
+- **Server-side cache** — `/api/auctions` caches on-chain data with 60s TTL, reduces RPC calls by ~8×
+- **Server-side FHE encryption fallback** — `/api/encrypt` when browser FHE relayer is unavailable
 - **Auto-replenishing** — maintains 8 active auctions from 12 templates
-- **RPC fallback** — Infura → Alchemy → PublicNode → 1RPC → rpc.sepolia.org → DRPC
 - **Real-time countdown** timers with seconds
+- **No burner wallet** — users connect their own wallet (MetaMask, WalletConnect, Coinbase, etc.)
+- **RPC fallback** — Infura → Alchemy → PublicNode → 1RPC → rpc.sepolia.org → DRPC
 - **OpenSea-inspired** dark UI with Zama theme (navy + gold)
 - **Mobile-responsive** layout
 
@@ -70,7 +74,7 @@ for (uint256 i = 1; i < bidders.length; i++) {
 | FHE | [Zama fhEVM](https://docs.zama.ai/fhevm) — Fully Homomorphic Encryption on EVM |
 | Smart Contracts | Solidity 0.8.27 — SealedBidAuction + AuctionFactory |
 | Frontend | Next.js 15, React 19, TypeScript |
-| Wallet | wagmi v2, RainbowKit, MetaMask |
+| Wallet | wagmi v2, RainbowKit (MetaMask, WalletConnect, Coinbase, Ledger) |
 | Encryption SDK | fhevm SDK (`packages/fhevm-sdk`) |
 | Contract Reads | ethers.js v6 (JsonRpcProvider) |
 | Styling | Tailwind CSS 4, custom Zama theme |
@@ -112,18 +116,17 @@ function winningBid() external view returns (uint64); // Post-settle winner amou
 ┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
 │   Browser   │     │  Next.js API │     │  Sepolia (fhEVM) │
 │             │     │              │     │                  │
-│  fhevm SDK  │────▶│              │     │  AuctionFactory  │
-│  encrypt    │     │              │     │       │          │
+│  fhevm SDK  │────▶│ /api/encrypt │     │  AuctionFactory  │
+│  encrypt    │     │  (fallback)  │     │       │          │
 │  bid        │     │              │     │  SealedBidAuction│
-│             │     │              │     │   (euint64 bids) │
-│  wagmi      │────▶│              │────▶│  placeBid()      │
+│             │     │ /api/auctions│     │   (euint64 bids) │
+│  wagmi      │────▶│  (60s cache) │────▶│  placeBid()      │
 │  writeContract    │              │     │  endAuction()    │
 │             │     │  Agentic     │     │  settleAuction() │
 │             │     │  Wallet      │────▶│                  │
 │             │     │  (HDNode)    │     │  FHE.gt()        │
-│             │     │              │     │  FHE.select()    │
-│  polls      │◀────│  decrypt     │◀────│  FHE.allow()     │
-│  results    │     │  + settle    │     │                  │
+│  polls      │◀────│  decrypt     │◀────│  FHE.select()    │
+│  results    │     │  + settle    │     │  FHE.allow()     │
 └─────────────┘     └──────────────┘     └──────────────────┘
 ```
 
@@ -219,9 +222,12 @@ SealedBid/
 │       │   ├── _components/SealedBidApp.tsx  # Main UI (cards, detail, modals)
 │       │   ├── error.tsx                     # Error boundary
 │       │   └── api/
-│       │       ├── seed/route.ts             # Initial auction seeding
-│       │       ├── auto-finalize/route.ts    # End + settle + replenish
-│       │       └── trigger-settle/route.ts   # Single-auction settle
+│       │       ├── auctions/route.ts        # Cached auction data (60s TTL)
+│       │       ├── encrypt/route.ts         # Server-side FHE encryption fallback
+│       │       ├── replenish/route.ts       # Parallel auction creation
+│       │       ├── seed/route.ts            # Initial auction seeding
+│       │       ├── auto-finalize/route.ts   # End + settle + replenish
+│       │       └── trigger-settle/route.ts  # Single-auction settle
 │       ├── hooks/sealedbid/
 │       │   ├── useSealedBidAuction.ts        # Auction reads/writes/FHE
 │       │   └── useAuctionFactory.ts          # Factory interactions
@@ -240,10 +246,23 @@ SealedBid/
 The app maintains **8 active auctions** at all times:
 
 - **`/api/seed`** — Creates 8 auctions with 10-second durations when none exist.
-- **`/api/auto-finalize`** — Ends expired auctions with bids, decrypts + settles via agentic wallet, replenishes up to 8. Runs every 45 seconds.
+- **`/api/auctions`** — Server-side cache of all auction data. 60s TTL, serves stale cache on error. Frontend polls every 10-30s instead of hitting RPC directly.
+- **`/api/encrypt`** — Server-side FHE encryption fallback when browser FHE relayer is unavailable. Uses cached FHE instance.
+- **`/api/replenish`** — Creates up to 8 auctions in parallel with explicit nonces, no confirmation wait.
+- **`/api/auto-finalize`** — Ends expired auctions with bids, decrypts + settles via agentic wallet, replenishes up to 8. Triggered every 90 seconds from the frontend.
 - **`/api/trigger-settle`** — Non-blocking single-auction settle endpoint. Called when user clicks "Check Winner".
 
 All server-side operations use an **agentic wallet** (HDNodeWallet from mnemonic) — no user signatures required for `endAuction()` or `settleAuction()`.
+
+## Performance & RPC Optimization
+
+The app is designed to minimize RPC calls and handle unreliable infrastructure:
+
+- **Server-side cache** (`/api/auctions`) — 60s TTL. Frontend reads from cache instead of hitting RPC directly. Serves stale cache on error.
+- **Adaptive splash screen** — 1.5s minimum, dismisses when cached data is ready, 4s maximum. Hides loading from the user.
+- **Adaptive polling** — When no active auctions exist, polls `/api/auctions` every 10s. When auctions are active, every 30s. Browser factory polls every 60s. Auction detail view polls every 15-30s (faster when nearing deadline).
+- **Server-side FHE fallback** — If browser FHE relayer is unavailable, `/api/encrypt` handles encryption server-side using a cached FHE instance.
+- **Parallel auction creation** — `/api/replenish` uses explicit nonces to create multiple auctions in a single block, no confirmation wait.
 
 ## Key Learnings
 
@@ -255,6 +274,10 @@ All server-side operations use an **agentic wallet** (HDNodeWallet from mnemonic
 - **Base64 on-chain is prohibitively expensive** — A 200KB base64 string costs ~3.2M gas. Use external image hosting (imgbb CDN).
 - **`ethers` signer doesn't work in browser wallets** — Use wagmi's `writeContractAsync` for writes, ethers `JsonRpcProvider` for reads only.
 - **`Promise.all` fails on FHE contracts** — Some view functions revert on certain auction states. Use `Promise.allSettled()` for batch reads.
+- **Burner wallets auto-connect on new devices** — `rainbowkitBurnerWallet` from `burner-connector` creates a random wallet and auto-connects without user interaction. Remove for production dApps.
+- **Vercel serverless doesn't persist state across cold starts** — In-memory cache only works for warm instances. Use `after()` from `next/server` for background refresh to keep cache warm.
+- **Vercel Hobby cron is limited to daily** — Use frontend-triggered API calls for frequent operations like auto-finalize.
+- **`after()` from `next/server`** — Keeps serverless function alive for background work after response is sent. Available in Next.js 15+.
 
 ## License
 
