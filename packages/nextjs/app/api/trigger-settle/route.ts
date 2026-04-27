@@ -4,7 +4,15 @@ import { ethers } from "ethers";
 import SealedBidAuctionABI from "~~/contracts/SealedBidAuction.abi.json";
 import { decryptAndSettle, prewarmFHE } from "~~/lib/decrypt-and-settle";
 import { getDeployerWallet, getSettleProvider } from "~~/lib/rpc-config";
-import { clearSettleEntry, getSettleState, setSettleDone, setSettleError, setSettlePending } from "~~/lib/settle-cache";
+import {
+  canRetry,
+  clearSettleEntry,
+  getSettleState,
+  incrementAttempt,
+  setSettleDone,
+  setSettlePending,
+  setSettleStep,
+} from "~~/lib/settle-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,13 +30,13 @@ export async function GET(request: Request) {
       if (cached.winner) {
         return NextResponse.json({ settled: true, winner: cached.winner, winningBid: cached.winningBid });
       }
-      if (cached.error) {
-        return NextResponse.json({ error: true, step: cached.error });
+      if (cached.error && !canRetry(addr)) {
+        return NextResponse.json({ error: true, step: cached.error, attempts: cached.attempts });
       }
       clearSettleEntry(addr);
     }
     if (cached?.status === "pending") {
-      return NextResponse.json({ pending: true, step: cached.step || "processing" });
+      return NextResponse.json({ pending: true, step: cached.step || "processing", attempts: cached.attempts });
     }
 
     const provider = await getSettleProvider();
@@ -53,32 +61,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ settled: true, winner, winningBid: String(wb) });
     }
 
-    if (s === 1) {
-      setSettlePending(addr, "Decrypting bids via FHE...");
-      prewarmFHE();
-
-      const backgroundWork = async () => {
-        try {
-          const result = await decryptAndSettle(addr, wallet, provider);
-          if (result) {
-            setSettleDone(addr, result.winnerAddr, String(result.winningBid));
-          } else {
-            setSettleError(addr, "decrypt failed");
-          }
-        } catch (e: any) {
-          setSettleError(addr, e.message?.slice(0, 100));
-        }
-      };
-
-      try {
-        after(backgroundWork);
-      } catch {
-        backgroundWork();
-      }
-
-      return NextResponse.json({ pending: true, step: "Decrypting bids via FHE..." });
-    }
-
     if (s === 0 && dl > 0 && dl <= now && bc > 0) {
       setSettlePending(addr, "Ending auction...");
       prewarmFHE();
@@ -86,27 +68,50 @@ export async function GET(request: Request) {
       const backgroundWork = async () => {
         try {
           const auctionWrite = new ethers.Contract(addr, SealedBidAuctionABI as any[], wallet);
+          setSettleStep(addr, "Submitting endAuction tx...");
           const tx = await auctionWrite.endAuction();
+          setSettleStep(addr, "Waiting for endAuction confirmation...");
           await tx.wait();
+
+          setSettleStep(addr, "Auction ended. Starting FHE decryption...");
+          const attempt = incrementAttempt(addr);
+          setSettleStep(addr, `Decrypting bids (attempt ${attempt})...`);
 
           const result = await decryptAndSettle(addr, wallet, provider);
           if (result) {
             setSettleDone(addr, result.winnerAddr, String(result.winningBid));
           } else {
-            setSettleError(addr, "ended but settle pending");
+            setSettleStep(addr, "Decrypt returned no result — will retry on next poll");
           }
         } catch (e: any) {
-          setSettleError(addr, e.message?.slice(0, 100));
+          console.error(`trigger-settle background error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
 
-      try {
-        after(backgroundWork);
-      } catch {
-        backgroundWork();
-      }
-
+      try { after(backgroundWork); } catch { backgroundWork(); }
       return NextResponse.json({ pending: true, step: "Ending auction..." });
+    }
+
+    if (s === 1) {
+      const attempt = incrementAttempt(addr);
+      setSettleStep(addr, `Decrypting bids (attempt ${attempt})...`);
+      prewarmFHE();
+
+      const backgroundWork = async () => {
+        try {
+          const result = await decryptAndSettle(addr, wallet, provider);
+          if (result) {
+            setSettleDone(addr, result.winnerAddr, String(result.winningBid));
+          } else {
+            setSettleStep(addr, "Decrypt returned no result — will retry on next poll");
+          }
+        } catch (e: any) {
+          console.error(`trigger-settle decrypt error for ${addr}:`, e.message?.slice(0, 120));
+        }
+      };
+
+      try { after(backgroundWork); } catch { backgroundWork(); }
+      return NextResponse.json({ pending: true, step: `Decrypting bids (attempt ${attempt})...` });
     }
 
     return NextResponse.json({ pending: true, status: s, deadline: dl, bidderCount: bc });

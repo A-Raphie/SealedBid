@@ -3,8 +3,6 @@ import SealedBidAuctionABI from "~~/contracts/SealedBidAuction.abi.json";
 import { RELAYER_RPC } from "~~/lib/rpc-config";
 import { setSettleStep } from "~~/lib/settle-cache";
 
-const MAX_RETRIES = 3;
-
 let cachedInstance: any = null;
 let instancePromise: Promise<any> | null = null;
 
@@ -28,7 +26,7 @@ export function prewarmFHE() {
   getFHEInstance().catch(() => {});
 }
 
-async function attemptDecryptAndSettle(
+export async function decryptAndSettle(
   auctionAddr: string,
   wallet: ethers.HDNodeWallet,
   provider: ethers.JsonRpcProvider,
@@ -112,23 +110,4 @@ async function attemptDecryptAndSettle(
   await settleTx.wait();
 
   return { winnerAddr, winningBid };
-}
-
-export async function decryptAndSettle(
-  auctionAddr: string,
-  wallet: ethers.HDNodeWallet,
-  provider: ethers.JsonRpcProvider,
-): Promise<{ winnerAddr: string; winningBid: bigint } | null> {
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      return await attemptDecryptAndSettle(auctionAddr, wallet, provider);
-    } catch (e: any) {
-      console.error(`decryptAndSettle attempt ${attempt}/${MAX_RETRIES} for ${auctionAddr}:`, e.message?.slice(0, 120));
-      if (attempt < MAX_RETRIES) {
-        setSettleStep(auctionAddr, `Retrying (${attempt + 1}/${MAX_RETRIES})...`);
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-  }
-  return null;
 }

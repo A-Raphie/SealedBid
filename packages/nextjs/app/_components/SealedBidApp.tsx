@@ -809,7 +809,6 @@ function AuctionDetail({
   const [activeTab, setActiveTab] = useState<"description" | "bidders" | "fhe">("description");
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [checkingStart, setCheckingStart] = useState(0);
   const [settleStep, setSettleStep] = useState("");
   const [settleError, setSettleError] = useState(false);
   const autoSettleFired = useRef(false);
@@ -818,7 +817,6 @@ function AuctionDetail({
   useEffect(() => {
     setBidAmount("");
     setChecking(false);
-    setCheckingStart(0);
     setActiveTab("description");
     setSettleStep("");
     setSettleError(false);
@@ -1137,10 +1135,9 @@ function AuctionDetail({
                     if (!auctionAddress || checking) return;
                     setChecking(true);
                     setSettleError(false);
-                    setCheckingStart(Date.now());
                     try {
                       const poll = async (attempts = 0) => {
-                        if (attempts > 80) {
+                        if (attempts > 100) {
                           setSettleError(true);
                           return;
                         }
@@ -1152,13 +1149,13 @@ function AuctionDetail({
                         const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
                         if (res) {
                           const data = await res.json().catch(() => ({} as any));
-                          if (data.error) {
+                          if (data.error && data.attempts >= 5) {
                             setSettleError(true);
                             return;
                           }
                           if (data.step) setSettleStep(data.step);
                         }
-                        await new Promise(res => setTimeout(res, 1500));
+                        await new Promise(res => setTimeout(res, 3000));
                         await poll(attempts + 1);
                       };
                       await poll();
@@ -1181,21 +1178,20 @@ function AuctionDetail({
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <p className="text-sm font-semibold text-white">FHE Relayer Unavailable</p>
+                  <p className="text-sm font-semibold text-white">Settlement taking longer than expected</p>
                 </div>
-                <p className="text-xs text-gray-500">Could not determine winner. The FHE decryption service may be temporarily down.</p>
+                <p className="text-xs text-gray-500">The FHE decryption is still processing. Try again or wait for auto-settlement.</p>
                 <button
                   onClick={async () => {
                     if (!auctionAddress || checking) return;
                     setSettleError(false);
                     setChecking(true);
-                    setCheckingStart(Date.now());
                     try {
                       const poll = async (attempts = 0) => {
-                        if (attempts > 80) {
+                        if (attempts > 100) {
                           setSettleError(true);
                           return;
                         }
@@ -1207,13 +1203,13 @@ function AuctionDetail({
                         const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
                         if (res) {
                           const data = await res.json().catch(() => ({} as any));
-                          if (data.error) {
+                          if (data.error && data.attempts >= 5) {
                             setSettleError(true);
                             return;
                           }
                           if (data.step) setSettleStep(data.step);
                         }
-                        await new Promise(res => setTimeout(res, 1500));
+                        await new Promise(res => setTimeout(res, 3000));
                         await poll(attempts + 1);
                       };
                       await poll();
@@ -1221,9 +1217,9 @@ function AuctionDetail({
                       setChecking(false);
                     }
                   }}
-                  className="bg-amber-500 text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-amber-400 cursor-pointer text-sm transition-all"
+                  className="bg-[#FFD208] text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-[#e6bd00] cursor-pointer text-sm transition-all"
                 >
-                  Retry
+                  Retry Settlement
                 </button>
               </div>
             )}
@@ -1240,9 +1236,7 @@ function AuctionDetail({
                   </p>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {checkingStart > 0
-                    ? `~${Math.max(0, 120 - Math.floor((Date.now() - checkingStart) / 1000))}s remaining`
-                    : "FHE decryption in progress"}
+                  This may take 1-2 minutes. FHE decryption is running in the background.
                 </p>
               </div>
             )}
