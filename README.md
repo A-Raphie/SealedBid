@@ -82,7 +82,7 @@ for (uint256 i = 1; i < bidders.length; i++) {
 
 ## Smart Contracts
 
-### AuctionFactory (`0xf6aACE498919826cFDbC8C3C125D6FCE161Ce39f` on Sepolia)
+### AuctionFactory ([Verified on Etherscan](https://sepolia.etherscan.io/address/0xf6aACE498919826cFDbC8C3C125D6FCE161Ce39f#code))
 
 Creates and tracks all auction instances.
 
