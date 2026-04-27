@@ -1,16 +1,16 @@
 import { ethers } from "ethers";
 
 const SEPOLIA_RPCS = [
-  "https://sepolia.infura.io/v3/b7a8e92c88ea49bb9604db817c7f6cb7",
   "https://eth-sepolia.g.alchemy.com/v2/_02KIc2YqRqViId1-mLOq",
+  "https://sepolia.infura.io/v3/b7a8e92c88ea49bb9604db817c7f6cb7",
   "https://ethereum-sepolia-rpc.publicnode.com",
   "https://1rpc.io/sepolia",
   "https://rpc.sepolia.org",
   "https://sepolia.drpc.org",
 ];
 
-export const INFURA_RPC = SEPOLIA_RPCS[0];
-export const RELAYER_RPC = SEPOLIA_RPCS[1];
+export const INFURA_RPC = SEPOLIA_RPCS[1];
+export const RELAYER_RPC = SEPOLIA_RPCS[0];
 export const POLL_RPC = "https://1rpc.io/sepolia";
 export const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_FACTORY_ADDRESS || "";
 export const DEPLOYER_MNEMONIC = process.env.DEPLOYER_MNEMONIC || "";
