@@ -1145,7 +1145,7 @@ function AuctionDetail({
                     if (!auctionAddress || checking) return;
                     setChecking(true);
                     setSettleError(false);
-                    setSettleStepIndex(1);
+                    setSettleStepIndex(auctionData.status === 1 ? 3 : 1);
                     try {
                       const poll = async (attempts = 0) => {
                         if (attempts > 100) {
@@ -1203,7 +1203,7 @@ function AuctionDetail({
                     if (!auctionAddress || checking) return;
                     setSettleError(false);
                     setChecking(true);
-                    setSettleStepIndex(1);
+                    setSettleStepIndex(auctionData.status === 1 ? 3 : 1);
                     try {
                       const poll = async (attempts = 0) => {
                         if (attempts > 100) {
