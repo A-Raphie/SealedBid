@@ -1,5 +1,5 @@
 const MAX_ATTEMPTS = 5;
-const ERROR_RETRY_MS = 30_000;
+const ERROR_RETRY_MS = 10_000;
 const PENDING_TIMEOUT_MS = 180_000;
 
 type SettleState = {
