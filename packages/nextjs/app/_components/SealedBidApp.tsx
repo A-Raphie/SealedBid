@@ -18,6 +18,25 @@ const STATUS_BADGE: Record<number, { label: string; cls: string }> = {
   5: { label: "Waiting", cls: "bg-black/85 text-amber-300" },
 };
 
+function getSettleStepIndex(step: string): number {
+  if (!step) return 0;
+  const s = step.toLowerCase();
+  if (s.includes("ending") || s.includes("ended")) return 1;
+  if (s.includes("confirming on") || s.includes("confirming blockchain")) return 2;
+  if (s.includes("reading") || s.includes("connecting") || s.includes("preparing") || s.includes("authorizing") || s.includes("decrypting") || s.includes("attempt")) return 3;
+  if (s.includes("recording")) return 4;
+  if (s === "confirming...") return 5;
+  return 3;
+}
+
+const SETTLE_STEPS = [
+  "Ending the auction",
+  "Confirming on blockchain",
+  "Decrypting bids",
+  "Recording result",
+  "Confirming result",
+];
+
 function derivedStatus(status: number, deadline: number, now: number) {
   if (status === 0 && deadline === 0) return 5;
   if (status === 0 && deadline > 0 && deadline <= now) return 4;
@@ -1225,19 +1244,49 @@ function AuctionDetail({
             )}
 
             {needsSettle && checking && (
-              <div className="bg-[#1a1f3a] rounded-xl p-4 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4 text-[#FFD208] animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <div className="bg-[#1a1f3a] rounded-xl p-5">
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <svg className="w-5 h-5 text-[#FFD208]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                   </svg>
-                  <p className="text-sm font-semibold text-white">
-                    {settleStep || "Determining winner\u2026"}
-                  </p>
+                  <p className="text-sm font-semibold text-white">Determining Winner</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  This may take 1-2 minutes. FHE decryption is running in the background.
-                </p>
+                <div className="space-y-3">
+                  {SETTLE_STEPS.map((label, i) => {
+                    const currentStep = getSettleStepIndex(settleStep);
+                    const stepNum = i + 1;
+                    const isDone = currentStep > stepNum;
+                    const isCurrent = currentStep === stepNum;
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isDone ? "bg-green-500/20" : isCurrent ? "bg-[#FFD208]/20" : "bg-white/5"
+                        }`}>
+                          {isDone ? (
+                            <svg className="w-3 h-3 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : isCurrent ? (
+                            <svg className="w-3 h-3 text-[#FFD208] animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                          )}
+                        </div>
+                        <span className={`text-sm ${isDone ? "text-green-400" : isCurrent ? "text-white font-medium" : "text-gray-600"}`}>
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {settleStep && (
+                  <p className="text-[11px] text-gray-500 mt-3 pt-3 border-t border-white/[0.06]">
+                    {settleStep} — this may take 1-2 minutes
+                  </p>
+                )}
               </div>
             )}
 
