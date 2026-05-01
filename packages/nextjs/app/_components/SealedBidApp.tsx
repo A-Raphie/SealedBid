@@ -1163,7 +1163,7 @@ function AuctionDetail({
               </div>
             )}
 
-            {needsSettle && !checking && !settleError && (
+            {needsSettle && !settleError && (
               <div className="bg-[#1a1f3a] rounded-xl p-4 text-center space-y-3">
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 text-[#FFD208]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1179,14 +1179,19 @@ function AuctionDetail({
                 <p className="text-xs text-gray-500">Winner can now be determined via FHE</p>
                 <button
                   onClick={() => runSettlePoll()}
-                  className="bg-[#FFD208] text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-[#e6bd00] cursor-pointer text-sm transition-all"
+                  disabled={checking}
+                  className={`px-5 py-2 font-semibold rounded-lg text-sm transition-all ${
+                    checking
+                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                      : "bg-[#FFD208] text-[#0a0e27] hover:bg-[#e6bd00] cursor-pointer"
+                  }`}
                 >
-                  Check Winner
+                  {checking ? "Settling..." : "Check Winner"}
                 </button>
               </div>
             )}
 
-            {needsSettle && !checking && settleError && (
+            {needsSettle && settleError && (
               <div className="bg-[#1a1f3a] rounded-xl p-4 text-center space-y-3">
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

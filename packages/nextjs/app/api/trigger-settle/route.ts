@@ -5,7 +5,6 @@ import SealedBidAuctionABI from "~~/contracts/SealedBidAuction.abi.json";
 import { decryptAndSettle, prewarmFHE } from "~~/lib/decrypt-and-settle";
 import { getDeployerWallet, getSettleProvider } from "~~/lib/rpc-config";
 import {
-  canRetry,
   clearSettleEntry,
   getSettleState,
   incrementAttempt,
@@ -26,17 +25,8 @@ export async function GET(request: Request) {
     }
 
     const cached = getSettleState(addr);
-    if (cached?.status === "done") {
-      if (cached.winner) {
-        return NextResponse.json({ settled: true, winner: cached.winner, winningBid: cached.winningBid });
-      }
-      if (cached.error && !canRetry(addr)) {
-        return NextResponse.json({ error: true, step: cached.error, attempts: cached.attempts });
-      }
-      clearSettleEntry(addr);
-    }
-    if (cached?.status === "pending") {
-      return NextResponse.json({ pending: true, step: cached.step || "processing", attempts: cached.attempts });
+    if (cached?.status === "done" && cached.winner) {
+      return NextResponse.json({ settled: true, winner: cached.winner, winningBid: cached.winningBid });
     }
 
     const provider = await getSettleProvider();
@@ -74,9 +64,9 @@ export async function GET(request: Request) {
             tx.wait(),
             new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
           ]);
-          setSettleStep(addr, "Auction ended. Waiting for decryption...");
+          setSettleStep(addr, "Auction ended. Starting decryption...");
         } catch (e: any) {
-          setSettleStep(addr, "Retrying — will continue on next poll...");
+          clearSettleEntry(addr);
           console.error(`trigger-settle endAuction error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
@@ -96,10 +86,10 @@ export async function GET(request: Request) {
           if (result) {
             setSettleDone(addr, result.winnerAddr, String(result.winningBid));
           } else {
-            setSettleStep(addr, "Still processing — will retry on next poll");
+            clearSettleEntry(addr);
           }
         } catch (e: any) {
-          setSettleStep(addr, "Retrying decryption — will continue on next poll...");
+          clearSettleEntry(addr);
           console.error(`trigger-settle decrypt error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
