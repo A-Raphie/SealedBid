@@ -845,11 +845,48 @@ function AuctionDetail({
   const image = meta?.image ?? catDefault.image;
   const needsSettle = isEnded || (isExpired && auctionData.bidderCount > 0);
 
+  const runSettlePoll = useCallback(async () => {
+    if (!auctionAddress || checking) return;
+    setChecking(true);
+    setSettleError(false);
+    setSettleStepIndex(auctionData.status === 1 ? 3 : 1);
+    setSettleStep("Starting settlement...");
+    fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
+    try {
+      let lastStatus: number | undefined = -1;
+      let lastTrigger = Date.now();
+      const poll = async (attempts = 0) => {
+        if (attempts > 80) {
+          setSettleError(true);
+          return;
+        }
+        const s = await auction.checkStatus();
+        if (s === 2) {
+          setSettleStepIndex(6);
+          await auction.refetchAll();
+          return;
+        }
+        if (s === 1) setSettleStepIndex(3);
+        else if (s === 0) setSettleStepIndex(1);
+        if (s !== lastStatus || Date.now() - lastTrigger > 5000) {
+          fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
+          lastTrigger = Date.now();
+        }
+        lastStatus = s;
+        await new Promise(r => setTimeout(r, 3000));
+        await poll(attempts + 1);
+      };
+      await poll();
+    } finally {
+      setChecking(false);
+    }
+  }, [auctionAddress, auctionData.status, auction, checking]);
+
   useEffect(() => {
     if (!auctionAddress || !needsSettle || autoSettleFired.current) return;
     autoSettleFired.current = true;
-    fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
-  }, [auctionAddress, needsSettle]);
+    runSettlePoll();
+  }, [auctionAddress, needsSettle, runSettlePoll]);
 
   const handleBid = async (amount: string) => {
     if (!amount || bidBelowMin(amount)) return;
@@ -1141,42 +1178,7 @@ function AuctionDetail({
                 </div>
                 <p className="text-xs text-gray-500">Winner can now be determined via FHE</p>
                 <button
-                  onClick={async () => {
-                    if (!auctionAddress || checking) return;
-                    setChecking(true);
-                    setSettleError(false);
-                    setSettleStepIndex(auctionData.status === 1 ? 3 : 1);
-                    try {
-                      const poll = async (attempts = 0) => {
-                        if (attempts > 100) {
-                          setSettleError(true);
-                          return;
-                        }
-                        const s = await auction.checkStatus();
-                        if (s === 2) {
-                          setSettleStepIndex(6);
-                          await auction.refetchAll();
-                          return;
-                        }
-                        if (s === 1) setSettleStepIndex(3);
-                        else if (s === 0) setSettleStepIndex(1);
-                        const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
-                        if (res) {
-                          const data = await res.json().catch(() => ({} as any));
-                          if (data.error && data.attempts >= 5) {
-                            setSettleError(true);
-                            return;
-                          }
-                          if (data.step) setSettleStep(data.step);
-                        }
-                        await new Promise(res => setTimeout(res, 3000));
-                        await poll(attempts + 1);
-                      };
-                      await poll();
-                    } finally {
-                      setChecking(false);
-                    }
-                  }}
+                  onClick={() => runSettlePoll()}
                   className="bg-[#FFD208] text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-[#e6bd00] cursor-pointer text-sm transition-all"
                 >
                   Check Winner
@@ -1199,42 +1201,7 @@ function AuctionDetail({
                 </div>
                 <p className="text-xs text-gray-500">The FHE decryption is still processing. Try again or wait for auto-settlement.</p>
                 <button
-                  onClick={async () => {
-                    if (!auctionAddress || checking) return;
-                    setSettleError(false);
-                    setChecking(true);
-                    setSettleStepIndex(auctionData.status === 1 ? 3 : 1);
-                    try {
-                      const poll = async (attempts = 0) => {
-                        if (attempts > 100) {
-                          setSettleError(true);
-                          return;
-                        }
-                        const s = await auction.checkStatus();
-                        if (s === 2) {
-                          setSettleStepIndex(6);
-                          await auction.refetchAll();
-                          return;
-                        }
-                        if (s === 1) setSettleStepIndex(3);
-                        else if (s === 0) setSettleStepIndex(1);
-                        const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
-                        if (res) {
-                          const data = await res.json().catch(() => ({} as any));
-                          if (data.error && data.attempts >= 5) {
-                            setSettleError(true);
-                            return;
-                          }
-                          if (data.step) setSettleStep(data.step);
-                        }
-                        await new Promise(res => setTimeout(res, 3000));
-                        await poll(attempts + 1);
-                      };
-                      await poll();
-                    } finally {
-                      setChecking(false);
-                    }
-                  }}
+                  onClick={() => runSettlePoll()}
                   className="bg-[#FFD208] text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-[#e6bd00] cursor-pointer text-sm transition-all"
                 >
                   Retry Settlement

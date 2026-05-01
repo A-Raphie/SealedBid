@@ -104,13 +104,9 @@ export async function decryptAndSettle(
   const winningBid = bidVal !== undefined && bidVal !== null ? BigInt(bidVal) : 0n;
 
   setSettleStep(auctionAddr, "Recording result...");
-  const settleTx = await auctionWrite.settleAuction(winnerAddr, winningBid);
+  await auctionWrite.settleAuction(winnerAddr, winningBid);
 
-  setSettleStep(auctionAddr, "Confirming...");
-  await Promise.race([
-    settleTx.wait(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
-  ]);
+  setSettleStep(auctionAddr, "Confirming on blockchain...");
 
   return { winnerAddr, winningBid };
 }
