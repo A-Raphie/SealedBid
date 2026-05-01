@@ -18,18 +18,6 @@ const STATUS_BADGE: Record<number, { label: string; cls: string }> = {
   5: { label: "Waiting", cls: "bg-black/85 text-amber-300" },
 };
 
-function getSettleStepIndex(step: string): number {
-  if (!step) return 0;
-  const s = step.toLowerCase();
-  if (s.includes("confirming on") || s.includes("confirming blockchain")) return 2;
-  if (s.includes("waiting for decryption")) return 3;
-  if (s.includes("reading") || s.includes("connecting") || s.includes("preparing") || s.includes("authorizing") || s.includes("decrypting") || s.includes("attempt")) return 3;
-  if (s.includes("recording")) return 4;
-  if (s === "confirming...") return 5;
-  if (s.includes("ending")) return 1;
-  return 3;
-}
-
 const SETTLE_STEPS = [
   "Ending the auction",
   "Confirming on blockchain",
@@ -830,6 +818,7 @@ function AuctionDetail({
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [settleStep, setSettleStep] = useState("");
+  const [settleStepIndex, setSettleStepIndex] = useState(0);
   const [settleError, setSettleError] = useState(false);
   const autoSettleFired = useRef(false);
   const { auctionAddress, auctionData, placeBid, cancelAuction, isProcessing, processingStep, message } = auction;
@@ -839,6 +828,7 @@ function AuctionDetail({
     setChecking(false);
     setActiveTab("description");
     setSettleStep("");
+    setSettleStepIndex(0);
     setSettleError(false);
     autoSettleFired.current = false;
   }, [auctionAddress]);
@@ -1155,6 +1145,7 @@ function AuctionDetail({
                     if (!auctionAddress || checking) return;
                     setChecking(true);
                     setSettleError(false);
+                    setSettleStepIndex(1);
                     try {
                       const poll = async (attempts = 0) => {
                         if (attempts > 100) {
@@ -1163,9 +1154,12 @@ function AuctionDetail({
                         }
                         const s = await auction.checkStatus();
                         if (s === 2) {
+                          setSettleStepIndex(6);
                           await auction.refetchAll();
                           return;
                         }
+                        if (s === 1) setSettleStepIndex(3);
+                        else if (s === 0) setSettleStepIndex(1);
                         const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
                         if (res) {
                           const data = await res.json().catch(() => ({} as any));
@@ -1209,6 +1203,7 @@ function AuctionDetail({
                     if (!auctionAddress || checking) return;
                     setSettleError(false);
                     setChecking(true);
+                    setSettleStepIndex(1);
                     try {
                       const poll = async (attempts = 0) => {
                         if (attempts > 100) {
@@ -1217,9 +1212,12 @@ function AuctionDetail({
                         }
                         const s = await auction.checkStatus();
                         if (s === 2) {
+                          setSettleStepIndex(6);
                           await auction.refetchAll();
                           return;
                         }
+                        if (s === 1) setSettleStepIndex(3);
+                        else if (s === 0) setSettleStepIndex(1);
                         const res = await fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => null);
                         if (res) {
                           const data = await res.json().catch(() => ({} as any));
@@ -1254,10 +1252,9 @@ function AuctionDetail({
                 </div>
                 <div className="space-y-3">
                   {SETTLE_STEPS.map((label, i) => {
-                    const currentStep = getSettleStepIndex(settleStep);
                     const stepNum = i + 1;
-                    const isDone = currentStep > stepNum;
-                    const isCurrent = currentStep === stepNum;
+                    const isDone = settleStepIndex > stepNum;
+                    const isCurrent = settleStepIndex === stepNum;
                     return (
                       <div key={i} className="flex items-center gap-3">
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${

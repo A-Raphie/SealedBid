@@ -76,6 +76,7 @@ export async function GET(request: Request) {
           ]);
           setSettleStep(addr, "Auction ended. Waiting for decryption...");
         } catch (e: any) {
+          setSettleStep(addr, "Retrying — will continue on next poll...");
           console.error(`trigger-settle endAuction error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
             setSettleStep(addr, "Still processing — will retry on next poll");
           }
         } catch (e: any) {
+          setSettleStep(addr, "Retrying decryption — will continue on next poll...");
           console.error(`trigger-settle decrypt error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
