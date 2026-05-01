@@ -250,7 +250,7 @@ The app maintains **8 active auctions** at all times:
 - **`/api/encrypt`** — Server-side FHE encryption fallback when browser FHE relayer is unavailable. Uses cached FHE instance.
 - **`/api/replenish`** — Creates up to 8 auctions in parallel with explicit nonces, no confirmation wait.
 - **`/api/auto-finalize`** — Ends expired auctions with bids, decrypts + settles via agentic wallet, replenishes up to 8. Triggered every 90 seconds from the frontend.
-- **`/api/trigger-settle`** — Non-blocking single-auction settle endpoint. Called when user clicks "Check Winner".
+- **`/api/trigger-settle`** — Non-blocking single-auction settle endpoint. Auto-triggered silently when auction ends; also called manually via "Check Winner" button. Settle tx is fire-and-forget (no `tx.wait()`) to fit within Vercel's 60s window. Retried every 5s on status transitions or failure.
 
 All server-side operations use an **agentic wallet** (HDNodeWallet from mnemonic) — no user signatures required for `endAuction()` or `settleAuction()`.
 
@@ -269,7 +269,7 @@ The app is designed to minimize RPC calls and handle unreliable infrastructure:
 - **`FallbackProvider` doesn't work in browsers** — Different RPCs report different chain IDs, causing `NETWORK_ERROR`. Use `JsonRpcProvider` with manual fallback logic instead.
 - **wagmi v2's `isConnected` is unreliable** — Can be `false` while `address` is populated during reconnection. Check `!!address` instead.
 - **1rpc.io doesn't work for FHE SDK** — The `network` parameter in `createInstance()` requires Infura or Alchemy; 1rpc.io causes a hang.
-- **FHE decrypt takes ~50-60 seconds** — Zama's server-side homomorphic decryption is not instant. Show a countdown to users.
+- **FHE decrypt takes ~40-50 seconds** — Zama's server-side homomorphic decryption is not instant. The full settle flow (end auction + decrypt + settle tx) completes in ~40-50s with auto-retry every 5s.
 - **Timer-on-first-bid saves gas** — Instead of restarting auctions every 10 seconds, the timer starts at 0 and is set on first bid. 2 ETH lasts ~91 days instead of ~23 hours.
 - **Base64 on-chain is prohibitively expensive** — A 200KB base64 string costs ~3.2M gas. Use external image hosting (imgbb CDN).
 - **`ethers` signer doesn't work in browser wallets** — Use wagmi's `writeContractAsync` for writes, ethers `JsonRpcProvider` for reads only.
