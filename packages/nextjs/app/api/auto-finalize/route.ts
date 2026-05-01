@@ -5,9 +5,10 @@ import SealedBidAuctionABI from "~~/contracts/SealedBidAuction.abi.json";
 import { TARGET_ACTIVE, TEMPLATES, pickRandom } from "~~/lib/auction-templates";
 import { decryptAndSettle } from "~~/lib/decrypt-and-settle";
 import { AUCTION_DURATION, FACTORY_ADDRESS, getDeployerWallet, getSettleProvider } from "~~/lib/rpc-config";
-import { getSettleState, setSettleDone, setSettlePending } from "~~/lib/settle-cache";
+import { canRetry, getSettleState, setSettleDone, setSettlePending } from "~~/lib/settle-cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET() {
   try {
@@ -41,19 +42,17 @@ export async function GET() {
           };
         }),
       );
-
       for (const info of infos) {
         if (info.status === "fulfilled") auctionInfos.push(info.value);
       }
-
       if (i + BATCH < allAddresses.length) {
         await new Promise(r => setTimeout(r, 500));
       }
     }
 
+    // Phase 1: End expired auctions (status 0 → 1). Fast, ~12s each.
     for (const info of auctionInfos) {
       const { addr, status, deadline, bidderCount } = info;
-
       if (status !== 0) continue;
       if (deadline === 0 || deadline >= now) continue;
       if (bidderCount === 0) continue;
@@ -61,45 +60,40 @@ export async function GET() {
       try {
         const auction = new ethers.Contract(addr, SealedBidAuctionABI as any[], wallet);
         const tx = await auction.endAuction();
-        await tx.wait();
-        results.push(`Ended: ${addr.slice(0, 10)}... (${bidderCount} bids) — ${tx.hash.slice(0, 10)}`);
-
-        await new Promise(r => setTimeout(r, 2000));
-
-        const settleResult = await decryptAndSettle(addr, wallet, provider);
-        if (settleResult) {
-          results.push(`Settled: ${settleResult.winnerAddr.slice(0, 10)}... (${settleResult.winningBid} wei)`);
-        }
+        await Promise.race([
+          tx.wait(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
+        ]);
+        results.push(`Ended: ${addr.slice(0, 10)}... (${bidderCount} bids)`);
       } catch (e: any) {
         results.push(`FAIL end ${addr.slice(0, 10)}: ${e.message?.slice(0, 60)}`);
       }
-
       await new Promise(r => setTimeout(r, 500));
     }
 
-    for (const info of auctionInfos) {
-      if (info.status !== 1) continue;
-
-      const cached = getSettleState(info.addr);
-      if (cached?.status === "pending") {
-        results.push(`Skipping ${info.addr.slice(0, 10)}... (already being settled)`);
-        continue;
-      }
-
-      try {
-        setSettlePending(info.addr, "Auto-settling...");
-        const settleResult = await decryptAndSettle(info.addr, wallet, provider);
-        if (settleResult) {
-          setSettleDone(info.addr, settleResult.winnerAddr, String(settleResult.winningBid));
-          results.push(`Auto-settled: ${info.addr.slice(0, 10)}... → ${settleResult.winnerAddr.slice(0, 10)}...`);
+    // Phase 2: Settle status 1 auctions (decrypt + settleAuction). Slow, ~62s each.
+    // Only attempt 1 per cycle to avoid timeout. Skip if already being settled.
+    const status1 = auctionInfos.filter(a => a.status === 1);
+    if (status1.length > 0) {
+      const toSettle = status1.find(a => {
+        const cached = getSettleState(a.addr);
+        return !cached?.status || (cached.status === "done" && cached.error && canRetry(a.addr));
+      });
+      if (toSettle) {
+        setSettlePending(toSettle.addr, "Auto-settling...");
+        try {
+          const settleResult = await decryptAndSettle(toSettle.addr, wallet, provider);
+          if (settleResult) {
+            setSettleDone(toSettle.addr, settleResult.winnerAddr, String(settleResult.winningBid));
+            results.push(`Settled: ${toSettle.addr.slice(0, 10)}... → ${settleResult.winnerAddr.slice(0, 10)}...`);
+          }
+        } catch (e: any) {
+          results.push(`FAIL settle ${toSettle.addr.slice(0, 10)}: ${e.message?.slice(0, 60)}`);
         }
-      } catch (e: any) {
-        results.push(`FAIL settle ${info.addr.slice(0, 10)}: ${e.message?.slice(0, 60)}`);
       }
-
-      await new Promise(r => setTimeout(r, 500));
     }
 
+    // Phase 3: Replenish active auctions. Fast, parallel txs.
     const currentActive = auctionInfos.filter(a => a.status === 0).length;
     const toCreate = Math.min(2, Math.max(0, TARGET_ACTIVE + 3 - currentActive));
 
@@ -108,20 +102,13 @@ export async function GET() {
 
       for (let i = 0; i < templates.length; i++) {
         const t = templates[i];
-
         if (i > 0) await new Promise(r => setTimeout(r, 4000));
 
         try {
           const itemURI = JSON.stringify(t.meta);
           const tx = await factoryWrite.createAuction(
-            itemURI,
-            t.title,
-            t.description,
-            ethers.ZeroAddress,
-            AUCTION_DURATION,
-            t.category,
-            ethers.ZeroAddress,
-            0,
+            itemURI, t.title, t.description, ethers.ZeroAddress,
+            AUCTION_DURATION, t.category, ethers.ZeroAddress, 0,
           );
           const receipt = await tx.wait();
           results.push(`Created: ${t.title} (${AUCTION_DURATION}s) — ${receipt.hash.slice(0, 10)}`);

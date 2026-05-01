@@ -63,7 +63,6 @@ export async function GET(request: Request) {
 
     if (s === 0 && dl > 0 && dl <= now && bc > 0) {
       setSettlePending(addr, "Ending auction...");
-      prewarmFHE();
 
       const backgroundWork = async () => {
         try {
@@ -75,19 +74,9 @@ export async function GET(request: Request) {
             tx.wait(),
             new Promise((_, reject) => setTimeout(() => reject(new Error("tx timeout")), 30000)),
           ]);
-
-          setSettleStep(addr, "Auction ended. Decrypting bids...");
-          const attempt = incrementAttempt(addr);
-          setSettleStep(addr, `Decrypting bids (attempt ${attempt})...`);
-
-          const result = await decryptAndSettle(addr, wallet, provider);
-          if (result) {
-            setSettleDone(addr, result.winnerAddr, String(result.winningBid));
-          } else {
-            setSettleStep(addr, "Still processing — will retry on next poll");
-          }
+          setSettleStep(addr, "Auction ended. Waiting for decryption...");
         } catch (e: any) {
-          console.error(`trigger-settle background error for ${addr}:`, e.message?.slice(0, 120));
+          console.error(`trigger-settle endAuction error for ${addr}:`, e.message?.slice(0, 120));
         }
       };
 

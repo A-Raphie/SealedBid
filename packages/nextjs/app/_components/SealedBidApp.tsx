@@ -21,11 +21,12 @@ const STATUS_BADGE: Record<number, { label: string; cls: string }> = {
 function getSettleStepIndex(step: string): number {
   if (!step) return 0;
   const s = step.toLowerCase();
-  if (s.includes("ending") || s.includes("ended")) return 1;
   if (s.includes("confirming on") || s.includes("confirming blockchain")) return 2;
+  if (s.includes("waiting for decryption")) return 3;
   if (s.includes("reading") || s.includes("connecting") || s.includes("preparing") || s.includes("authorizing") || s.includes("decrypting") || s.includes("attempt")) return 3;
   if (s.includes("recording")) return 4;
   if (s === "confirming...") return 5;
+  if (s.includes("ending")) return 1;
   return 3;
 }
 
