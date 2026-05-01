@@ -845,6 +845,27 @@ function AuctionDetail({
   const image = meta?.image ?? catDefault.image;
   const needsSettle = isEnded || (isExpired && auctionData.bidderCount > 0);
 
+  const autoSettle = useCallback(async () => {
+    if (!auctionAddress) return;
+    fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
+    let lastTrigger = Date.now();
+    const check = async (attempts = 0) => {
+      if (attempts > 100) return;
+      const s = await auction.checkStatus();
+      if (s === 2) {
+        await auction.refetchAll();
+        return;
+      }
+      if (Date.now() - lastTrigger > 5000) {
+        fetch(`/api/trigger-settle?addr=${auctionAddress}`).catch(() => {});
+        lastTrigger = Date.now();
+      }
+      await new Promise(r => setTimeout(r, 3000));
+      await check(attempts + 1);
+    };
+    await check();
+  }, [auctionAddress, auction]);
+
   const runSettlePoll = useCallback(async () => {
     if (!auctionAddress || checking) return;
     setChecking(true);
@@ -885,8 +906,8 @@ function AuctionDetail({
   useEffect(() => {
     if (!auctionAddress || !needsSettle || autoSettleFired.current) return;
     autoSettleFired.current = true;
-    runSettlePoll();
-  }, [auctionAddress, needsSettle, runSettlePoll]);
+    autoSettle();
+  }, [auctionAddress, needsSettle, autoSettle]);
 
   const handleBid = async (amount: string) => {
     if (!amount || bidBelowMin(amount)) return;
@@ -1163,7 +1184,7 @@ function AuctionDetail({
               </div>
             )}
 
-            {needsSettle && !settleError && (
+            {needsSettle && !settleError && !checking && (
               <div className="bg-[#1a1f3a] rounded-xl p-4 text-center space-y-3">
                 <div className="flex items-center justify-center gap-2">
                   <svg className="w-4 h-4 text-[#FFD208]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1179,14 +1200,9 @@ function AuctionDetail({
                 <p className="text-xs text-gray-500">Winner can now be determined via FHE</p>
                 <button
                   onClick={() => runSettlePoll()}
-                  disabled={checking}
-                  className={`px-5 py-2 font-semibold rounded-lg text-sm transition-all ${
-                    checking
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                      : "bg-[#FFD208] text-[#0a0e27] hover:bg-[#e6bd00] cursor-pointer"
-                  }`}
+                  className="bg-[#FFD208] text-[#0a0e27] px-5 py-2 font-semibold rounded-lg hover:bg-[#e6bd00] cursor-pointer text-sm transition-all"
                 >
-                  {checking ? "Settling..." : "Check Winner"}
+                  Check Winner
                 </button>
               </div>
             )}
