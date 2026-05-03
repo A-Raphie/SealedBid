@@ -6,7 +6,7 @@ Built for the [Zama Developer Program](https://www.zama.ai/) Builder Track.
 
 ## Demo
 
-[3-min video demo](#) *(coming soon)*
+[3-min video demo](https://www.loom.com/share/52f9444489b34ff8a1584093291b1af2)
 
 ## How It Works
 
